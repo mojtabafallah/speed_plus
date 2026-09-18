@@ -14,9 +14,10 @@ use SpeedPulsePro\Core\Profiler;
 final class MemoryLeakDetector
 {
 	/** @var list<array{label:string,memory:int,delta:int}> */
-	private array $samples = [];
+	private $samples = [];
 
-	private int $lastMem = 0;
+	/** @var int */
+	private $lastMem = 0;
 
 	/** @var Profiler */
 	private $profiler;

@@ -11,40 +11,46 @@ namespace SpeedPulsePro\Core;
 
 final class Profiler
 {
-	private static ?self $instance = null;
+	/** @var self|null */
+	private static $instance = null;
 
-	private bool $enabled = false;
-	private float $startTime = 0.0;
-	private int $startMemory = 0;
+	/** @var bool */
+	private $enabled = false;
+	/** @var float */
+	private $startTime = 0.0;
+	/** @var int */
+	private $startMemory = 0;
 	/** @var array<string, mixed>|null */
-	private ?array $startRusage = null;
+	private $startRusage = null;
 
 	/** @var list<array{label:string,time:float,memory:int,source:string}> */
-	private array $timeline = [];
+	private $timeline = [];
 
 	/** @var list<array<string, mixed>> */
-	private array $hooks = [];
+	private $hooks = [];
 
 	/** @var list<array<string, mixed>> */
-	private array $queries = [];
+	private $queries = [];
 
 	/** @var list<array<string, mixed>> */
-	private array $network = [];
+	private $network = [];
 
 	/** @var array<string, array{cpu:float,memory:int,hooks:int,queries:int}> */
-	private array $attribution = [];
+	private $attribution = [];
 
 	/** @var list<array<string, mixed>> */
-	private array $assets = [];
+	private $assets = [];
 
 	/** @var list<array<string, mixed>> */
-	private array $cronEvents = [];
+	private $cronEvents = [];
 
 	/** @var list<array<string, mixed>> */
-	private array $wooEvents = [];
+	private $wooEvents = [];
 
-	private float $ttfbMs = 0.0;
-	private string $slowestSource = 'هسته وردپرس';
+	/** @var float */
+	private $ttfbMs = 0.0;
+	/** @var string */
+	private $slowestSource = 'هسته وردپرس';
 
 	public static function instance(): self
 	{

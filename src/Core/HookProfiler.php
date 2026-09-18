@@ -12,7 +12,7 @@ namespace SpeedPulsePro\Core;
 final class HookProfiler
 {
 	/** @var array<string, float> */
-	private array $starts = [];
+	private $starts = [];
 
 	/** @var Profiler */
 	private $profiler;

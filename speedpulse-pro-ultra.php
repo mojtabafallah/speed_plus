@@ -3,7 +3,7 @@
  * Plugin Name: اسپید‌پالس پرو اولترا
  * Plugin URI:  https://github.com/mojtabafallah/speed_plus
  * Description: سامانه مانیتورینگ بلادرنگ، عیب‌یاب PHP، جراح ووکامرس و تولید پچ بهینه‌سازی مبتنی بر هوش مصنوعی — کاملاً فارسی و راست‌چین.
- * Version:     1.0.13
+ * Version:     1.0.14
  * Author:      Mojtaba Fallah
  * Author URI:  https://github.com/mojtabafallah
  * Requires at least: 5.8
@@ -23,7 +23,17 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-define('SPEEDPULSE_VERSION', '1.0.13');
+// حداقل PHP 7.4 — سازگار با 8.0 / 8.1 / 8.2 / 8.3
+if (version_compare(PHP_VERSION, '7.4', '<')) {
+	add_action('admin_notices', static function (): void {
+		echo '<div class="notice notice-error"><p>';
+		echo esc_html('اسپید‌پالس پرو به PHP 7.4 یا بالاتر نیاز دارد. نسخه فعلی سرور: ' . PHP_VERSION);
+		echo '</p></div>';
+	});
+	return;
+}
+
+define('SPEEDPULSE_VERSION', '1.0.14');
 define('SPEEDPULSE_FILE', __FILE__);
 define('SPEEDPULSE_PATH', plugin_dir_path(__FILE__));
 define('SPEEDPULSE_URL', plugin_dir_url(__FILE__));

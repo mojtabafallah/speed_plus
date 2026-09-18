@@ -30,9 +30,11 @@ use SpeedPulsePro\WooCommerce\WooSurgeon;
 
 final class Plugin
 {
-	private static ?self $instance = null;
+	/** @var self|null */
+	private static $instance = null;
 
-	private Profiler $profiler;
+	/** @var Profiler */
+	private $profiler;
 
 	public static function instance(): self
 	{
