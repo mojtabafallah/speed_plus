@@ -39,9 +39,11 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 
 		<div class="speedpulse-drawer__body">
 			<section class="speedpulse-tab is-active" data-panel="timeline">
-				<h3>خلاصه زمان لود</h3>
+				<h3>زمان واقعی صفحه</h3>
+				<div id="sp-browser" class="sp-browser"></div>
+				<h3>خلاصه زمان سرور (HTML)</h3>
 				<div id="sp-breakdown" class="sp-breakdown"></div>
-				<h3>آبشار زمان اجرا</h3>
+				<h3>آبشار زمان اجرای PHP</h3>
 				<div id="sp-timeline" class="sp-waterfall"></div>
 			</section>
 

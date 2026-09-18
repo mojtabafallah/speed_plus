@@ -52,6 +52,7 @@ final class AjaxHandlers
 			'speedpulse_save_settings'  => 'saveSettings',
 			'speedpulse_cron_inventory' => 'cronInventory',
 			'speedpulse_memory_report'  => 'memoryReport',
+			'speedpulse_browser_report' => 'browserReport',
 		];
 
 		foreach ($actions as $action => $method) {
@@ -89,12 +90,44 @@ final class AjaxHandlers
 		if (! is_array($snap)) {
 			$snap = $this->profiler->isEnabled() ? $this->profiler->snapshot() : [];
 		}
-		$dom = get_transient('speedpulse_dom_last');
+		$dom     = get_transient('speedpulse_dom_last');
+		$browser = get_transient('speedpulse_browser_metrics');
 		wp_send_json_success([
 			'snapshot' => $snap,
 			'dom'      => is_array($dom) ? $dom : null,
+			'browser'  => is_array($browser) ? $browser : null,
 			'memory'   => get_transient('speedpulse_memory_report'),
 		]);
+	}
+
+	public function browserReport(): void
+	{
+		$this->guard();
+		$raw = wp_unslash((string) ($_POST['payload'] ?? ''));
+		$data = json_decode($raw, true);
+		if (! is_array($data)) {
+			wp_send_json_error(['message' => 'داده مرورگر نامعتبر است.']);
+		}
+
+		$clean = [
+			'page_url'           => esc_url_raw((string) ($data['page_url'] ?? '')),
+			'page_path'          => sanitize_text_field((string) ($data['page_path'] ?? '')),
+			'collected_at'       => (int) ($data['collected_at'] ?? time()),
+			'browser_wall_ms'    => (float) ($data['browser_wall_ms'] ?? 0),
+			'browser_wall_human' => sanitize_text_field((string) ($data['browser_wall_human'] ?? '')),
+			'resource_count'     => (int) ($data['resource_count'] ?? 0),
+			'server_document'    => is_array($data['server_document'] ?? null) ? $data['server_document'] : [],
+			'by_type'            => is_array($data['by_type'] ?? null) ? array_slice($data['by_type'], 0, 20) : [],
+			'slowest'            => is_array($data['slowest'] ?? null) ? array_slice($data['slowest'], 0, 25) : [],
+			'note_fa'            => sanitize_text_field((string) ($data['note_fa'] ?? '')),
+		];
+
+		if ($clean['browser_wall_human'] === '' && $clean['browser_wall_ms'] > 0) {
+			$clean['browser_wall_human'] = \SpeedPulsePro\Core\Profiler::formatDuration($clean['browser_wall_ms']);
+		}
+
+		set_transient('speedpulse_browser_metrics', $clean, 600);
+		wp_send_json_success(['message' => 'متریک مرورگر ذخیره شد.', 'browser' => $clean]);
 	}
 
 	public function domReport(): void

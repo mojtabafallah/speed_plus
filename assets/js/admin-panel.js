@@ -11,6 +11,7 @@
   var modalTimer = null;
   var lastSnap = null;
   var lastDom = null;
+  var lastBrowser = D.browserMetrics || null;
 
   var BREAKDOWN_MAP = {
     queries: {
@@ -441,6 +442,50 @@
     drawer.setAttribute('aria-hidden', 'true');
   }
 
+  function renderBrowser(browser) {
+    var el = $('#sp-browser');
+    if (!el) return;
+    browser = browser || lastBrowser;
+    if (!browser || !browser.browser_wall_ms) {
+      el.innerHTML =
+        '<div class="sp-browser-empty">' +
+          '<p><strong>هنوز متریک مرورگر نرسیده است.</strong></p>' +
+          '<p class="sp-meta">پس از روشن بودن ضبط، ۱۵–۳۵ ثانیه در همین صفحه بمانید تا درخواست‌های Network (مثل wp-json ووکامرس) هم جمع شوند. سپس پنل را دوباره باز کنید.</p>' +
+          '<p class="sp-meta">توجه: عدد «۳ ثانیه» فقط زمان ساخت HTML در سرور است؛ تب Network مرورگر مجموع همه درخواست‌های بعدی را هم نشان می‌دهد.</p>' +
+        '</div>';
+      return;
+    }
+
+    var doc = browser.server_document || {};
+    var types = (browser.by_type || []).map(function (t) {
+      return '<div class="sp-row"><div><strong>' + esc(t.label) + '</strong>' +
+        '<div class="sp-meta">' + esc(t.count) + ' درخواست — جمع نسبی ' + esc(t.human_sum) + '</div></div>' +
+        '<div class="sp-breakdown-nums"><strong>' + esc(t.human_max || fmtTime(t.max_ms)) + '</strong>' +
+        '<span class="sp-badge warn">کندترین</span></div></div>';
+    }).join('');
+
+    var slow = (browser.slowest || []).slice(0, 12).map(function (s) {
+      return '<div class="sp-row"><div><div class="sp-sql">' + esc(s.name) + '</div>' +
+        '<div class="sp-meta">' + esc(s.type) + (s.waiting_ms ? (' | انتظار سرور: ' + fmtTime(s.waiting_ms)) : '') + '</div></div>' +
+        '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></div>';
+    }).join('');
+
+    el.innerHTML =
+      '<div class="sp-browser-hero">' +
+        '<div class="sp-browser-hero__label">زمان واقعی تجربه کاربر (مرورگر / Network)</div>' +
+        '<div class="sp-browser-hero__value">' + esc(browser.browser_wall_human || fmtTime(browser.browser_wall_ms)) + '</div>' +
+        '<p class="sp-meta">' + esc(browser.note_fa || '') + '</p>' +
+        '<div class="sp-detail-stats">' +
+          '<div><b>' + esc(doc.human_ttfb || fmtTime(doc.ttfb_ms)) + '</b><span>TTFB سند اصلی</span></div>' +
+          '<div><b>' + esc(doc.human_dom || fmtTime(doc.dom_content_ms)) + '</b><span>DOMContentLoaded</span></div>' +
+          '<div><b>' + esc(doc.human_load || fmtTime(doc.load_event_ms)) + '</b><span>رویداد Load</span></div>' +
+        '</div>' +
+        '<div class="sp-meta">تعداد منابع ثبت‌شده: ' + esc(browser.resource_count || 0) + '</div>' +
+      '</div>' +
+      '<h4>دسته‌بندی منابع مرورگر</h4><div class="sp-list">' + (types || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
+      '<h4>کندترین درخواست‌های Network</h4><div class="sp-list">' + (slow || '<p class="sp-meta">موردی نیست</p>') + '</div>';
+  }
+
   function renderBreakdown(snap) {
     var el = $('#sp-breakdown');
     if (!el) return;
@@ -488,6 +533,7 @@
   }
 
   function renderTimeline(snap) {
+    renderBrowser(lastBrowser);
     renderBreakdown(snap);
     var el = $('#sp-timeline');
     if (!el) return;
@@ -581,6 +627,10 @@
       var snap = res.data.snapshot || {};
       lastSnap = snap;
       lastDom = res.data.dom || null;
+      if (res.data.browser) {
+        lastBrowser = res.data.browser;
+        D.browserMetrics = lastBrowser;
+      }
       renderTimeline(snap);
       renderQueries(snap);
       renderSources(snap);
@@ -661,6 +711,19 @@
     if (D.snapshot && typeof D.snapshot === 'object') {
       lastSnap = D.snapshot;
     }
+    if (D.browserMetrics) {
+      lastBrowser = D.browserMetrics;
+    }
+
+    window.addEventListener('speedpulse:browser-metrics', function (ev) {
+      if (ev && ev.detail) {
+        lastBrowser = ev.detail;
+        D.browserMetrics = ev.detail;
+        if (drawer && drawer.classList.contains('is-open')) {
+          renderBrowser(lastBrowser);
+        }
+      }
+    });
 
     document.addEventListener('click', function (e) {
       var t = e.target;

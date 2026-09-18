@@ -277,8 +277,36 @@ button.sp-row {
   word-break: break-word;
 }
 
-.sp-breakdown {
-  margin-bottom: 22px;
+.sp-browser {
+  margin-bottom: 20px;
+}
+
+.sp-browser-hero {
+  background: linear-gradient(135deg, #1a2838 0%, #12202c 55%, #0f1a24 100%);
+  border: 1px solid rgba(224, 164, 92, .35);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.sp-browser-hero__label {
+  color: #e0a45c;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.sp-browser-hero__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #f0c674;
+  margin-bottom: 8px;
+}
+
+.sp-browser-empty {
+  background: var(--sp-card);
+  border: 1px dashed var(--sp-line);
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .sp-breakdown-total {
