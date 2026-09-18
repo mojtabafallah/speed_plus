@@ -40,6 +40,27 @@ final class AdminBar
 			[],
 			SPEEDPULSE_VERSION
 		);
+
+		$blocked = \SpeedPulsePro\Core\RequestBlocker::getList();
+
+		// بلاکر باید زود لود شود (هدر) تا XHR/fetch را قبل از بقیه قلاب کند
+		wp_enqueue_script(
+			'speedpulse-blocker',
+			SPEEDPULSE_URL . 'assets/js/request-blocker.js',
+			[],
+			SPEEDPULSE_VERSION,
+			false
+		);
+		wp_localize_script(
+			'speedpulse-blocker',
+			'SpeedPulseBlock',
+			[
+				'ajaxUrl' => admin_url('admin-ajax.php'),
+				'nonce'   => wp_create_nonce('speedpulse_ajax'),
+				'items'   => $blocked,
+			]
+		);
+
 		wp_enqueue_script(
 			'speedpulse-html2canvas',
 			SPEEDPULSE_URL . 'assets/js/vendor/html2canvas.min.js',
@@ -50,7 +71,7 @@ final class AdminBar
 		wp_enqueue_script(
 			'speedpulse-admin',
 			SPEEDPULSE_URL . 'assets/js/admin-panel.js',
-			['speedpulse-html2canvas'],
+			['speedpulse-html2canvas', 'speedpulse-blocker'],
 			SPEEDPULSE_VERSION,
 			true
 		);
@@ -60,7 +81,7 @@ final class AdminBar
 			wp_enqueue_script(
 				'speedpulse-browser',
 				SPEEDPULSE_URL . 'assets/js/browser-collector.js',
-				['speedpulse-admin'],
+				['speedpulse-admin', 'speedpulse-blocker'],
 				SPEEDPULSE_VERSION,
 				true
 			);
@@ -86,12 +107,13 @@ final class AdminBar
 			'speedpulse-admin',
 			'SpeedPulseData',
 			[
-				'ajaxUrl'        => admin_url('admin-ajax.php'),
-				'nonce'          => wp_create_nonce('speedpulse_ajax'),
-				'snapshot'       => $snap,
-				'browserMetrics' => is_array($browser) ? $browser : null,
-				'collectBrowser' => $enabled,
-				'i18n'           => [
+				'ajaxUrl'          => admin_url('admin-ajax.php'),
+				'nonce'            => wp_create_nonce('speedpulse_ajax'),
+				'snapshot'         => $snap,
+				'browserMetrics'   => is_array($browser) ? $browser : null,
+				'collectBrowser'   => $enabled,
+				'blockedRequests'  => $blocked,
+				'i18n'             => [
 					'recording' => 'ضبط زنده روشن',
 					'stopped'   => 'ضبط خاموش',
 					'loading'   => 'در حال بارگذاری…',

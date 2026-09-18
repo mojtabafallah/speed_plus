@@ -85,6 +85,10 @@ $exportImgBtn = static function (string $panel): void {
 				<span class="sp-tab-label">هوش مصنوعی</span>
 				<span class="sp-tab-metric" data-tab-metric="ai">—</span>
 			</button>
+			<button type="button" data-tab="blocks">
+				<span class="sp-tab-label">بلاک‌ها</span>
+				<span class="sp-tab-metric" data-tab-metric="blocks">—</span>
+			</button>
 			<button type="button" data-tab="total" class="sp-tab-total">
 				<span class="sp-tab-label">جمع کل</span>
 				<span class="sp-tab-metric" data-tab-metric="total">—</span>
@@ -222,6 +226,17 @@ $exportImgBtn = static function (string $panel): void {
 				<textarea id="sp-patch-code" class="sp-codearea" rows="16" dir="ltr"></textarea>
 				<pre id="sp-patch-diff" class="sp-code"></pre>
 				<button type="button" class="button" id="sp-patch-save">ذخیره پیش‌نویس</button>
+			</section>
+
+			<section class="speedpulse-tab" data-panel="blocks">
+				<?php $exportImgBtn('blocks'); ?>
+				<h3>درخواست‌های بلاک‌شده (آزمایشی)</h3>
+				<p class="sp-meta">با بلاک کردن، XHR/fetch/Beacon در مرورگر و در صورت امکان HTTP سمت سرور متوقف می‌شود تا ببینید کندی کم می‌شود یا نه. رفرش صفحه بعد از بلاک توصیه می‌شود.</p>
+				<div class="sp-actions sp-no-capture">
+					<button type="button" class="button" id="sp-blocks-refresh">بازخوانی لیست</button>
+					<button type="button" class="button" id="sp-blocks-clear">پاک‌سازی همه بلاک‌ها</button>
+				</div>
+				<div id="sp-blocks"></div>
 			</section>
 
 			<section class="speedpulse-tab" data-panel="total">

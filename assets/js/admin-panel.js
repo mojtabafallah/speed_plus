@@ -89,6 +89,120 @@
     return n.toFixed(2) + ' میلی‌ثانیه';
   }
 
+  function blockerApi() {
+    return window.SpeedPulseBlocker || null;
+  }
+
+  function blockBtnHtml(spec) {
+    spec = spec || {};
+    var url = spec.url || '';
+    var action = spec.action || '';
+    var type = spec.type || '';
+    var label = spec.label || url || action || type || 'درخواست';
+    var api = blockerApi();
+    var blocked = api && api.isBlocked(url, action);
+    if (!blocked && type && api) {
+      var items = api.getItems();
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === 'type' && items[i].type === type) {
+          blocked = true;
+          break;
+        }
+      }
+    }
+    var payload = encodeURIComponent(JSON.stringify({
+      url: url,
+      action: action,
+      type: type,
+      label: label,
+      kind: spec.kind || ''
+    }));
+    if (blocked) {
+      return '<button type="button" class="button sp-block-btn is-blocked" data-sp-unblock-payload="' + payload + '">آن‌بلاک</button>';
+    }
+    return '<button type="button" class="button sp-block-btn" data-sp-block-payload="' + payload + '">بلاک کردن</button>';
+  }
+
+  function applyBlockFromPayload(raw, unblock) {
+    var api = blockerApi();
+    if (!api) {
+      notify('موتور بلاک بارگذاری نشده. صفحه را رفرش کنید.', { type: 'error' });
+      return;
+    }
+    var spec;
+    try {
+      spec = JSON.parse(decodeURIComponent(raw));
+    } catch (e) {
+      notify('داده بلاک نامعتبر است.', { type: 'error' });
+      return;
+    }
+    if (unblock) {
+      var hit = api.find(spec.url, spec.action);
+      if (hit) {
+        api.remove(hit.id);
+      } else if (spec.type) {
+        api.getItems().forEach(function (it) {
+          if (it.kind === 'type' && it.type === spec.type) api.remove(it.id);
+        });
+      } else if (spec.action) {
+        api.getItems().forEach(function (it) {
+          if (it.kind === 'action' && it.action === spec.action) api.remove(it.id);
+        });
+      }
+      notify('بلاک برداشته شد. برای اثر کامل یک‌بار رفرش کنید.', { type: 'success', title: 'آن‌بلاک' });
+    } else {
+      var kind = spec.kind || '';
+      if (!kind) {
+        if (spec.action && (spec.type === 'ajax' || spec.type === 'heartbeat')) kind = 'action';
+        else if (spec.type && !spec.url) kind = 'type';
+        else kind = 'pattern';
+      }
+      var row = {
+        kind: kind,
+        url: spec.url || '',
+        action: spec.action || '',
+        type: kind === 'type' ? (spec.type || '') : '',
+        label: spec.label || spec.url || spec.action || spec.type,
+        scope: 'both'
+      };
+      if (kind === 'action' && !row.action) {
+        notify('اکشن مشخص نیست؛ به‌جایش URL بلاک می‌شود.', { type: 'warn' });
+        row.kind = 'pattern';
+      }
+      api.add(row);
+      notify('بلاک شد. درخواست‌های بعدی قطع می‌شوند. صفحه را رفرش کنید و دوباره اندازه بگیرید.', {
+        type: 'success',
+        title: 'بلاک کردن',
+        autoClose: false
+      });
+    }
+    renderBlockedList();
+    updateTabMetrics();
+    if (lastBrowser) renderBrowser(lastBrowser);
+    if (lastSnap) renderSources(lastSnap);
+  }
+
+  function renderBlockedList() {
+    var el = $('#sp-blocks');
+    if (!el) return;
+    var api = blockerApi();
+    var list = api ? api.getItems() : (D.blockedRequests || []);
+    setTabMetric('blocks', list.length ? (list.length + ' مورد') : '۰');
+    if (!list.length) {
+      el.innerHTML = '<p class="sp-meta">هنوز چیزی بلاک نشده. روی هر درخواست دکمه «بلاک کردن» را بزنید.</p>';
+      return;
+    }
+    el.innerHTML = '<div class="sp-list">' + list.map(function (it) {
+      return '<div class="sp-row"><div><strong>' + esc(it.label || it.pattern || it.action || it.type) + '</strong>' +
+        '<div class="sp-meta">' + esc(it.kind) +
+        (it.action ? (' | action=' + esc(it.action)) : '') +
+        (it.type ? (' | type=' + esc(it.type)) : '') +
+        (it.pattern ? (' | ' + esc(it.pattern)) : '') +
+        '</div></div>' +
+        '<button type="button" class="button sp-block-btn is-blocked" data-sp-unblock-id="' + esc(it.id) + '">آن‌بلاک</button></div>';
+    }).join('') + '</div>';
+  }
+
   function ensureUi() {
     if ($('#speedpulse-ajax-loader')) return;
 
@@ -251,6 +365,7 @@
     if (name === 'live') startLive();
     else stopLive();
     if (name === 'total') renderTotalSummary();
+    if (name === 'blocks') renderBlockedList();
 
     if (scrollId) {
       setTimeout(function () {
@@ -337,6 +452,8 @@
     setTabMetric('dom', lastDom && lastDom.elements != null ? (lastDom.elements + ' المان') : '—');
     setTabMetric('tools', 'ابزار');
     setTabMetric('ai', 'AI');
+    var blockCount = blockerApi() ? blockerApi().getItems().length : ((D.blockedRequests || []).length || 0);
+    setTabMetric('blocks', blockCount ? (blockCount + ' مورد') : '۰');
 
     var totalVal = browser.browser_wall_human || bd.total_human || snap.total_human || '—';
     if (browser.wall_inflated && browser.load_wall_human) {
@@ -759,12 +876,15 @@
       if (t.key === 'ajax') badge = '<span class="sp-badge warn">AJAX</span> ';
       if (t.key === 'rest') badge = '<span class="sp-badge danger">REST</span> ';
       var active = selectedBrowserType === t.key ? ' is-active' : '';
-      return '<button type="button" class="sp-row sp-clickable sp-browser-type' + active + '" data-browser-type="' + esc(t.key) + '">' +
+      return '<div class="sp-row sp-row--actions">' +
+        '<button type="button" class="sp-row-main sp-clickable sp-browser-type' + active + '" data-browser-type="' + esc(t.key) + '">' +
         '<div><strong>' + badge + esc(t.label) + '</strong>' +
         '<div class="sp-meta">' + esc(t.count) + ' درخواست — جمع نسبی ' + esc(t.human_sum) + '</div>' +
         '<div class="sp-click-hint">کلیک برای دیدن همه درخواست‌ها با شروع / پایان / منبع</div></div>' +
         '<div class="sp-breakdown-nums"><strong>' + esc(t.human_max || fmtTime(t.max_ms)) + '</strong>' +
-        '<span class="sp-badge warn">کندترین</span></div></button>';
+        '<span class="sp-badge warn">کندترین</span></div></button>' +
+        blockBtnHtml({ kind: 'type', type: t.key, label: 'همه «' + t.label + '»' }) +
+      '</div>';
     }).join('');
 
     var metaLine = 'تعداد منابع: ' + esc(browser.resource_count || 0);
@@ -781,12 +901,15 @@
         : (s.type === 'ajax'
           ? '<span class="sp-badge warn">AJAX</span> '
           : (s.type === 'rest' ? '<span class="sp-badge danger">REST</span> ' : ''));
-      return '<button type="button" class="sp-row sp-clickable" data-browser-res="' + esc(s.url || s.name || '') + '">' +
+      return '<div class="sp-row sp-row--actions">' +
+        '<button type="button" class="sp-row-main sp-clickable" data-browser-res="' + esc(s.url || s.name || '') + '">' +
         '<div><div class="sp-sql">' + typeBadge + esc(s.name) + '</div>' +
         '<div class="sp-meta">' + esc(s.type) + (s.action ? (' | action=' + esc(s.action)) : '') +
         ' | شروع ' + esc(s.start_ms || 0) + 'ms → پایان ' + esc(s.end_ms || ((s.start_ms || 0) + (s.duration_ms || 0))) + 'ms' +
         (s.waiting_ms ? (' | انتظار سرور: ' + fmtTime(s.waiting_ms)) : '') + '</div></div>' +
-        '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></button>';
+        '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></button>' +
+        blockBtnHtml({ url: s.url || '', action: s.action || '', type: s.type || '', label: s.name || s.url }) +
+      '</div>';
     }).join('');
 
     el.innerHTML =
@@ -857,6 +980,7 @@
         (r.waiting_ms ? '<div class="sp-meta">انتظار سرور: ' + esc(fmtTime(r.waiting_ms)) + '</div>' : '') +
         (r.transfer_kb ? '<div class="sp-meta">حجم انتقال: ' + esc(r.transfer_kb) + ' KB</div>' : '') +
         '<div class="sp-sql" title="' + esc(r.url || '') + '">' + esc(r.url || r.name || '') + '</div>' +
+        '<div class="sp-res-card__actions">' + blockBtnHtml({ url: r.url || '', action: r.action || '', type: r.type || '', label: r.name || r.url }) + '</div>' +
       '</div>';
     }).join('');
 
@@ -866,7 +990,10 @@
       panel.innerHTML =
         '<div class="sp-browser-detail__head">' +
           '<h4>جزئیات دسته: ' + esc(label) + ' (' + resources.length + ' درخواست)</h4>' +
-          '<button type="button" class="button" data-browser-detail-close>بستن جزئیات</button>' +
+          '<div class="sp-actions">' +
+            blockBtnHtml({ kind: 'type', type: typeKey, label: 'همه «' + label + '»' }) +
+            '<button type="button" class="button" data-browser-detail-close>بستن جزئیات</button>' +
+          '</div>' +
         '</div>' +
         (rows || '<p class="sp-meta">درخواستی در این دسته نیست.</p>');
       panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -917,7 +1044,8 @@
       (hit.action ? '<p><strong>اکشن:</strong> <code dir="ltr">' + esc(hit.action) + '</code></p>' : '') +
       (hit.waiting_ms ? '<p><strong>انتظار سرور:</strong> ' + esc(fmtTime(hit.waiting_ms)) + '</p>' : '') +
       (hit.transfer_kb ? '<p><strong>حجم:</strong> ' + esc(hit.transfer_kb) + ' KB</p>' : '') +
-      '<p class="sp-sql" dir="ltr">' + esc(hit.url || hit.name || '') + '</p>';
+      '<p class="sp-sql" dir="ltr">' + esc(hit.url || hit.name || '') + '</p>' +
+      '<div class="sp-actions">' + blockBtnHtml({ url: hit.url || '', action: hit.action || '', type: hit.type || '', label: hit.name || hit.url }) + '</div>';
     notify(html, {
       type: 'info',
       title: hit.name || 'جزئیات درخواست',
@@ -1208,9 +1336,12 @@
     var net = $('#sp-network');
     if (net) {
       net.innerHTML = '<div class="sp-list">' + (snap.network || []).map(function (n) {
-        return '<div class="sp-row"><div><div class="sp-sql">' + esc(n.url) + '</div>' +
+        return '<div class="sp-row sp-row--actions">' +
+          '<div class="sp-row-main"><div><div class="sp-sql">' + esc(n.url) + '</div>' +
           '<div class="sp-meta">' + (n.blocking ? 'مسدودکننده' : 'ناهمگام') + ' | کد ' + esc(n.code) + '</div></div>' +
-          '<strong>' + esc(fmtTime(n.time_ms)) + '</strong></div>';
+          '<strong>' + esc(fmtTime(n.time_ms)) + '</strong></div>' +
+          blockBtnHtml({ url: n.url || '', kind: 'pattern', label: n.url || 'HTTP' }) +
+        '</div>';
       }).join('') + '</div>';
     }
   }
@@ -1227,7 +1358,10 @@
       warn +
       '<h4>منابع احتمالی مسدودکننده رندر</h4><div class="sp-list">' +
       (dom.blocking || []).slice(0, 25).map(function (b) {
-        return '<div class="sp-row"><div class="sp-sql">' + esc(b.href) + '</div><span class="sp-badge">' + esc(b.tag) + '</span></div>';
+        return '<div class="sp-row sp-row--actions">' +
+          '<div class="sp-row-main"><div class="sp-sql">' + esc(b.href) + '</div><span class="sp-badge">' + esc(b.tag) + '</span></div>' +
+          blockBtnHtml({ url: b.href || '', kind: 'pattern', label: b.href || b.tag }) +
+        '</div>';
       }).join('') + '</div>';
   }
 
@@ -1354,6 +1488,14 @@
       lastBrowser = D.browserMetrics;
     }
     updateTabMetrics();
+    renderBlockedList();
+
+    window.addEventListener('speedpulse:blocks-changed', function () {
+      renderBlockedList();
+      updateTabMetrics();
+      if (lastBrowser) renderBrowser(lastBrowser);
+      if (lastSnap) renderSources(lastSnap);
+    });
 
     window.addEventListener('speedpulse:browser-metrics', function (ev) {
       if (ev && ev.detail) {
@@ -1401,6 +1543,35 @@
       if (exportImgBtn) {
         e.preventDefault();
         exportPanelImage(exportImgBtn.getAttribute('data-export-panel'));
+        return;
+      }
+
+      var blockPayload = t.closest ? t.closest('[data-sp-block-payload]') : null;
+      if (blockPayload) {
+        e.preventDefault();
+        e.stopPropagation();
+        applyBlockFromPayload(blockPayload.getAttribute('data-sp-block-payload'), false);
+        return;
+      }
+      var unblockPayload = t.closest ? t.closest('[data-sp-unblock-payload]') : null;
+      if (unblockPayload) {
+        e.preventDefault();
+        e.stopPropagation();
+        applyBlockFromPayload(unblockPayload.getAttribute('data-sp-unblock-payload'), true);
+        return;
+      }
+      var unblockId = t.closest ? t.closest('[data-sp-unblock-id]') : null;
+      if (unblockId) {
+        e.preventDefault();
+        var api = blockerApi();
+        if (api) {
+          api.remove(unblockId.getAttribute('data-sp-unblock-id'));
+          notify('بلاک برداشته شد.', { type: 'success', title: 'آن‌بلاک' });
+          renderBlockedList();
+          updateTabMetrics();
+          if (lastBrowser) renderBrowser(lastBrowser);
+          if (lastSnap) renderSources(lastSnap);
+        }
         return;
       }
 
@@ -1514,6 +1685,19 @@
     });
     var refreshSystem = $('#sp-refresh-system');
     if (refreshSystem) refreshSystem.addEventListener('click', loadSystem);
+    var blocksRefresh = $('#sp-blocks-refresh');
+    if (blocksRefresh) blocksRefresh.addEventListener('click', renderBlockedList);
+    var blocksClear = $('#sp-blocks-clear');
+    if (blocksClear) blocksClear.addEventListener('click', function () {
+      var api = blockerApi();
+      if (!api) return;
+      api.clear();
+      notify('همه بلاک‌ها پاک شد. صفحه را رفرش کنید.', { type: 'success', title: 'بلاک‌ها' });
+      renderBlockedList();
+      updateTabMetrics();
+      if (lastBrowser) renderBrowser(lastBrowser);
+      if (lastSnap) renderSources(lastSnap);
+    });
     var clearLog = $('#sp-clear-log');
     if (clearLog) clearLog.addEventListener('click', function () {
       post('speedpulse_clear_log', {}, {

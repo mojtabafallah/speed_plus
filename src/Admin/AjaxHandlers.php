@@ -13,6 +13,7 @@ use SpeedPulsePro\AI\AiClient;
 use SpeedPulsePro\AI\CanaryRunner;
 use SpeedPulsePro\AI\PatchGenerator;
 use SpeedPulsePro\Core\Profiler;
+use SpeedPulsePro\Core\RequestBlocker;
 use SpeedPulsePro\Core\SystemInfo;
 use SpeedPulsePro\Crawler\SiteCrawler;
 use SpeedPulsePro\Cron\CronAuditor;
@@ -56,6 +57,8 @@ final class AjaxHandlers
 			'speedpulse_browser_report' => 'browserReport',
 			'speedpulse_system_info'    => 'systemInfo',
 			'speedpulse_live_metrics'   => 'liveMetrics',
+			'speedpulse_save_blocks'    => 'saveBlocks',
+			'speedpulse_get_blocks'     => 'getBlocks',
 		];
 
 		foreach ($actions as $action => $method) {
@@ -330,6 +333,26 @@ final class AjaxHandlers
 	{
 		$this->guard();
 		wp_send_json_success(['live' => (new SystemInfo())->liveSample()]);
+	}
+
+	public function saveBlocks(): void
+	{
+		$this->guard();
+		$raw = json_decode(wp_unslash((string) ($_POST['items'] ?? '[]')), true);
+		if (! is_array($raw)) {
+			wp_send_json_error(['message' => 'لیست بلاک نامعتبر است.']);
+		}
+		$list = RequestBlocker::saveList($raw);
+		wp_send_json_success([
+			'message' => 'لیست بلاک ذخیره شد (' . count($list) . ' مورد).',
+			'items'   => $list,
+		]);
+	}
+
+	public function getBlocks(): void
+	{
+		$this->guard();
+		wp_send_json_success(['items' => RequestBlocker::getList()]);
 	}
 
 	/**

@@ -18,6 +18,7 @@ use SpeedPulsePro\AI\AiClient;
 use SpeedPulsePro\AI\CanaryRunner;
 use SpeedPulsePro\AI\PatchGenerator;
 use SpeedPulsePro\Core\Profiler;
+use SpeedPulsePro\Core\RequestBlocker;
 use SpeedPulsePro\Crawler\SiteCrawler;
 use SpeedPulsePro\Cron\CronAuditor;
 use SpeedPulsePro\Cron\MemoryLeakDetector;
@@ -48,6 +49,8 @@ final class Plugin
 
 	public function boot(): void
 	{
+		(new RequestBlocker())->boot();
+
 		// سربار نزدیک به صفر وقتی ضبط خاموش است.
 		if ($this->profiler->isEnabled()) {
 			$this->profiler->start();
