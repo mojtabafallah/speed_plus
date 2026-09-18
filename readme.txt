@@ -4,7 +4,7 @@ Tags: performance, profiling, woocommerce, debug, persian
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.15
+Stable tag: 1.0.16
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,6 +23,9 @@ Requires PHP 7.4 or higher (works on 8.0, 8.1, and 8.2).
 3. Activate and open SpeedPulse from the admin bar.
 
 == Changelog ==
+
+= 1.0.16 =
+* Open-URL button on every network request row
 
 = 1.0.15 =
 * English plugin headers for reliable install on PHP 8.1 hosts

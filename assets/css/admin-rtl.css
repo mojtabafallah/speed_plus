@@ -490,6 +490,28 @@ button.sp-row {
   white-space: nowrap;
 }
 
+.sp-req-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: stretch;
+}
+
+.sp-open-url-btn {
+  flex-shrink: 0;
+  background: rgba(110, 168, 254, .15) !important;
+  border-color: rgba(110, 168, 254, .45) !important;
+  color: #9ec1ff !important;
+  white-space: nowrap;
+  text-align: center;
+  text-decoration: none !important;
+}
+
+.sp-open-url-btn:hover {
+  color: #cfe0ff !important;
+}
+
 .sp-block-btn.is-blocked {
   background: rgba(61, 186, 156, .15) !important;
   border-color: rgba(61, 186, 156, .45) !important;

@@ -3,7 +3,7 @@
  * Plugin Name: SpeedPulse Pro Ultra
  * Plugin URI: https://github.com/mojtabafallah/speed_plus
  * Description: Real-time WordPress performance monitor (Persian RTL). Server timing, browser Network, queries, RAM/CPU, and tips.
- * Version: 1.0.15
+ * Version: 1.0.16
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Mojtaba Fallah
@@ -35,7 +35,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 	return;
 }
 
-define('SPEEDPULSE_VERSION', '1.0.15');
+define('SPEEDPULSE_VERSION', '1.0.16');
 define('SPEEDPULSE_FILE', __FILE__);
 define('SPEEDPULSE_PATH', plugin_dir_path(__FILE__));
 define('SPEEDPULSE_URL', plugin_dir_url(__FILE__));

@@ -123,6 +123,28 @@
     return '<button type="button" class="button sp-block-btn" data-sp-block-payload="' + payload + '">بلاک کردن</button>';
   }
 
+  function openUrlBtnHtml(url) {
+    var u = String(url || '').trim();
+    if (!u || u.indexOf('data:') === 0 || u.indexOf('blob:') === 0) {
+      return '';
+    }
+    // لینک نسبی را مطلق کن
+    try {
+      u = new URL(u, window.location.href).href;
+    } catch (e) {
+      return '';
+    }
+    return '<a class="button sp-open-url-btn" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer" title="باز کردن لینک درخواست">باز کردن لینک</a>';
+  }
+
+  function requestActionBtns(spec) {
+    spec = spec || {};
+    return '<div class="sp-req-actions">' +
+      openUrlBtnHtml(spec.url || '') +
+      blockBtnHtml(spec) +
+    '</div>';
+  }
+
   function applyBlockFromPayload(raw, unblock) {
     var api = blockerApi();
     if (!api) {
@@ -908,7 +930,7 @@
         ' | شروع ' + esc(s.start_ms || 0) + 'ms → پایان ' + esc(s.end_ms || ((s.start_ms || 0) + (s.duration_ms || 0))) + 'ms' +
         (s.waiting_ms ? (' | انتظار سرور: ' + fmtTime(s.waiting_ms)) : '') + '</div></div>' +
         '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></button>' +
-        blockBtnHtml({ url: s.url || '', action: s.action || '', type: s.type || '', label: s.name || s.url }) +
+        requestActionBtns({ url: s.url || '', action: s.action || '', type: s.type || '', label: s.name || s.url }) +
       '</div>';
     }).join('');
 
@@ -980,7 +1002,7 @@
         (r.waiting_ms ? '<div class="sp-meta">انتظار سرور: ' + esc(fmtTime(r.waiting_ms)) + '</div>' : '') +
         (r.transfer_kb ? '<div class="sp-meta">حجم انتقال: ' + esc(r.transfer_kb) + ' KB</div>' : '') +
         '<div class="sp-sql" title="' + esc(r.url || '') + '">' + esc(r.url || r.name || '') + '</div>' +
-        '<div class="sp-res-card__actions">' + blockBtnHtml({ url: r.url || '', action: r.action || '', type: r.type || '', label: r.name || r.url }) + '</div>' +
+        '<div class="sp-res-card__actions">' + requestActionBtns({ url: r.url || '', action: r.action || '', type: r.type || '', label: r.name || r.url }) + '</div>' +
       '</div>';
     }).join('');
 
@@ -1045,7 +1067,7 @@
       (hit.waiting_ms ? '<p><strong>انتظار سرور:</strong> ' + esc(fmtTime(hit.waiting_ms)) + '</p>' : '') +
       (hit.transfer_kb ? '<p><strong>حجم:</strong> ' + esc(hit.transfer_kb) + ' KB</p>' : '') +
       '<p class="sp-sql" dir="ltr">' + esc(hit.url || hit.name || '') + '</p>' +
-      '<div class="sp-actions">' + blockBtnHtml({ url: hit.url || '', action: hit.action || '', type: hit.type || '', label: hit.name || hit.url }) + '</div>';
+      '<div class="sp-actions">' + requestActionBtns({ url: hit.url || '', action: hit.action || '', type: hit.type || '', label: hit.name || hit.url }) + '</div>';
     notify(html, {
       type: 'info',
       title: hit.name || 'جزئیات درخواست',
@@ -1340,7 +1362,7 @@
           '<div class="sp-row-main"><div><div class="sp-sql">' + esc(n.url) + '</div>' +
           '<div class="sp-meta">' + (n.blocking ? 'مسدودکننده' : 'ناهمگام') + ' | کد ' + esc(n.code) + '</div></div>' +
           '<strong>' + esc(fmtTime(n.time_ms)) + '</strong></div>' +
-          blockBtnHtml({ url: n.url || '', kind: 'pattern', label: n.url || 'HTTP' }) +
+          requestActionBtns({ url: n.url || '', kind: 'pattern', label: n.url || 'HTTP' }) +
         '</div>';
       }).join('') + '</div>';
     }
@@ -1360,7 +1382,7 @@
       (dom.blocking || []).slice(0, 25).map(function (b) {
         return '<div class="sp-row sp-row--actions">' +
           '<div class="sp-row-main"><div class="sp-sql">' + esc(b.href) + '</div><span class="sp-badge">' + esc(b.tag) + '</span></div>' +
-          blockBtnHtml({ url: b.href || '', kind: 'pattern', label: b.href || b.tag }) +
+          requestActionBtns({ url: b.href || '', kind: 'pattern', label: b.href || b.tag }) +
         '</div>';
       }).join('') + '</div>';
   }
@@ -1665,7 +1687,10 @@
           if (box) {
             box.innerHTML = '<div class="sp-meta">وضعیت: ' + esc(st.status) + ' — ' + esc(st.offset) + '/' + esc(st.total) + '</div>' +
               '<div class="sp-list">' + (st.results || []).slice(0, 15).map(function (r) {
-                return '<div class="sp-row"><div class="sp-sql">' + esc(r.url) + '</div><strong>' + esc(fmtTime(r.ttfb_ms)) + '</strong></div>';
+                return '<div class="sp-row sp-row--actions">' +
+                  '<div class="sp-row-main"><div class="sp-sql">' + esc(r.url) + '</div><strong>' + esc(fmtTime(r.ttfb_ms)) + '</strong></div>' +
+                  openUrlBtnHtml(r.url || '') +
+                '</div>';
               }).join('') + '</div>';
           }
         }).catch(function () {});
