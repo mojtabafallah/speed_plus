@@ -121,9 +121,12 @@ final class AjaxHandlers
 			'browser_wall_ms'    => (float) ($data['browser_wall_ms'] ?? 0),
 			'browser_wall_human' => sanitize_text_field((string) ($data['browser_wall_human'] ?? '')),
 			'resource_count'     => (int) ($data['resource_count'] ?? 0),
+			'heartbeat_count'    => (int) ($data['heartbeat_count'] ?? 0),
+			'ajax_count'         => (int) ($data['ajax_count'] ?? 0),
+			'rest_count'         => (int) ($data['rest_count'] ?? 0),
 			'server_document'    => is_array($data['server_document'] ?? null) ? $data['server_document'] : [],
 			'by_type'            => is_array($data['by_type'] ?? null) ? array_slice($data['by_type'], 0, 20) : [],
-			'slowest'            => is_array($data['slowest'] ?? null) ? array_slice($data['slowest'], 0, 25) : [],
+			'slowest'            => is_array($data['slowest'] ?? null) ? array_slice($data['slowest'], 0, 30) : [],
 			'note_fa'            => sanitize_text_field((string) ($data['note_fa'] ?? '')),
 		];
 

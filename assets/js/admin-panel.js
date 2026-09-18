@@ -492,15 +492,33 @@
 
     var doc = browser.server_document || {};
     var types = (browser.by_type || []).map(function (t) {
-      return '<div class="sp-row"><div><strong>' + esc(t.label) + '</strong>' +
+      var badge = '';
+      if (t.key === 'heartbeat') badge = '<span class="sp-badge">Heartbeat</span> ';
+      if (t.key === 'ajax') badge = '<span class="sp-badge warn">AJAX</span> ';
+      if (t.key === 'rest') badge = '<span class="sp-badge danger">REST</span> ';
+      return '<div class="sp-row"><div><strong>' + badge + esc(t.label) + '</strong>' +
         '<div class="sp-meta">' + esc(t.count) + ' درخواست — جمع نسبی ' + esc(t.human_sum) + '</div></div>' +
         '<div class="sp-breakdown-nums"><strong>' + esc(t.human_max || fmtTime(t.max_ms)) + '</strong>' +
         '<span class="sp-badge warn">کندترین</span></div></div>';
     }).join('');
 
+    var metaLine = 'تعداد منابع: ' + esc(browser.resource_count || 0);
+    if (browser.heartbeat_count != null || browser.ajax_count != null || browser.rest_count != null) {
+      metaLine +=
+        ' | Heartbeat: ' + esc(browser.heartbeat_count || 0) +
+        ' | AJAX: ' + esc(browser.ajax_count || 0) +
+        ' | REST: ' + esc(browser.rest_count || 0);
+    }
+
     var slow = (browser.slowest || []).slice(0, 12).map(function (s) {
-      return '<div class="sp-row"><div><div class="sp-sql">' + esc(s.name) + '</div>' +
-        '<div class="sp-meta">' + esc(s.type) + (s.waiting_ms ? (' | انتظار سرور: ' + fmtTime(s.waiting_ms)) : '') + '</div></div>' +
+      var typeBadge = s.type === 'heartbeat'
+        ? '<span class="sp-badge">Heartbeat</span> '
+        : (s.type === 'ajax'
+          ? '<span class="sp-badge warn">AJAX</span> '
+          : (s.type === 'rest' ? '<span class="sp-badge danger">REST</span> ' : ''));
+      return '<div class="sp-row"><div><div class="sp-sql">' + typeBadge + esc(s.name) + '</div>' +
+        '<div class="sp-meta">' + esc(s.type) + (s.action ? (' | action=' + esc(s.action)) : '') +
+        (s.waiting_ms ? (' | انتظار سرور: ' + fmtTime(s.waiting_ms)) : '') + '</div></div>' +
         '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></div>';
     }).join('');
 
@@ -514,7 +532,7 @@
           '<div><b>' + esc(doc.human_dom || fmtTime(doc.dom_content_ms)) + '</b><span>DOMContentLoaded</span></div>' +
           '<div><b>' + esc(doc.human_load || fmtTime(doc.load_event_ms)) + '</b><span>رویداد Load</span></div>' +
         '</div>' +
-        '<div class="sp-meta">تعداد منابع ثبت‌شده: ' + esc(browser.resource_count || 0) + '</div>' +
+        '<div class="sp-meta">' + metaLine + '</div>' +
       '</div>' +
       '<h4>دسته‌بندی منابع مرورگر</h4><div class="sp-list">' + (types || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
       '<h4>کندترین درخواست‌های Network</h4><div class="sp-list">' + (slow || '<p class="sp-meta">موردی نیست</p>') + '</div>' +

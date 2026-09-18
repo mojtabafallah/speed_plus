@@ -175,7 +175,8 @@ final class RecommendationEngine
 			foreach ($byType as $t) {
 				$key = (string) ($t['key'] ?? '');
 				$max = (float) ($t['max_ms'] ?? 0);
-				if ($max < 3000) {
+				$minForTip = ($key === 'heartbeat') ? 400.0 : 3000.0;
+				if ($max < $minForTip) {
 					continue;
 				}
 				if ($key === 'rest') {
@@ -189,6 +190,19 @@ final class RecommendationEngine
 							'ویجت‌ها/آنبوردینگ/نوتیفیکیشن‌های wc-admin را سبک یا غیرفعال کنید.',
 							'کرون و Action Scheduler معوق را خالی کنید تا REST سبک‌تر شود.',
 							'اگر فقط در لوکال کند است، اول بدون Xdebug اندازه بگیرید.',
+						],
+						'timeline'
+					);
+				} elseif ($key === 'heartbeat') {
+					$out[] = $this->item(
+						'heartbeat-info',
+						'info',
+						'Heartbeat وردپرس (جدا از AJAX معمولی)',
+						'درخواست‌های Heartbeat حدود ' . Profiler::formatDuration($max) . ' دیده شد؛ این از Admin AJAX کاری جداست.',
+						[
+							'با فیلتر heartbeat_settings فاصله را در ادمین بیشتر کنید (مثلاً ۶۰–۱۲۰ ثانیه).',
+							'در فرانت اگر لازم نیست Heartbeat را محدود/غیرفعال کنید.',
+							'افزونه‌هایی که به Heartbeat قلاب سنگین زده‌اند را بررسی کنید.',
 						],
 						'timeline'
 					);
@@ -209,12 +223,12 @@ final class RecommendationEngine
 					$out[] = $this->item(
 						'ajax-slow',
 						'warn',
-						'admin-ajax.php کند است',
-						'حداقل یک AJAX حدود ' . Profiler::formatDuration($max) . ' طول کشیده.',
+						'Admin AJAX کند است (غیر از Heartbeat)',
+						'حداقل یک admin-ajax غیرHeartbeat حدود ' . Profiler::formatDuration($max) . ' طول کشیده.',
 						[
-							'هوک‌های ajax اکشن مربوطه را پیدا و پروفایل کنید.',
+							'اکشن دقیق AJAX را در لیست Network پنل ببینید (مثلاً AJAX [action_name]).',
+							'هوک wp_ajax_{action} مربوطه را پروفایل و کوئری داخلش را بهینه کنید.',
 							'کارهای سنگین را به REST یا صف پس‌زمینه منتقل کنید.',
-							'Heartbeat ادمین را محدود کنید اگر تداخل ایجاد می‌کند.',
 						],
 						'timeline'
 					);
@@ -286,6 +300,12 @@ final class RecommendationEngine
 			];
 		}
 		if (strpos($u, 'admin-ajax.php') !== false) {
+			if (strpos($u, 'heartbeat') !== false) {
+				return [
+					'این Heartbeat است نه AJAX کاری؛ فاصله heartbeat_settings را زیاد کنید.',
+					'قلاب‌های سنگین روی heartbeat_received را پیدا و سبک کنید.',
+				];
+			}
 			return [
 				'اکشن AJAX را در لاگ/پروفایلر پیدا کنید و کوئری داخلش را بهینه کنید.',
 			];
