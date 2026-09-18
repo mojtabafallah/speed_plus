@@ -233,15 +233,23 @@ final class Profiler
 	{
 		$peakMem = memory_get_peak_usage(true);
 		$cpuMs   = $this->cpuDeltaMs();
+		$totalMs = $this->ttfbMs > 0
+			? $this->ttfbMs
+			: (microtime(true) - $this->startTime) * 1000;
+		$breakdown = $this->buildTimeBreakdown($totalMs);
 
 		return [
 			'enabled'         => $this->enabled,
-			'ttfb_ms'         => round($this->ttfbMs > 0 ? $this->ttfbMs : (microtime(true) - $this->startTime) * 1000, 2),
+			'ttfb_ms'         => round($totalMs, 2),
+			'total_ms'        => round($totalMs, 2),
+			'total_sec'       => round($totalMs / 1000, 3),
+			'total_human'     => self::formatDuration($totalMs),
 			'cpu_ms'          => round($cpuMs, 2),
 			'memory_mb'       => round(($peakMem - $this->startMemory) / 1048576, 2),
 			'peak_memory_mb'  => round($peakMem / 1048576, 2),
 			'query_count'     => count($this->queries),
 			'slowest_source'  => $this->slowestSource,
+			'time_breakdown'  => $breakdown,
 			'timeline'        => $this->timeline,
 			'hooks'           => $this->topHooks(40),
 			'queries'         => $this->queries,
@@ -254,6 +262,154 @@ final class Profiler
 			'generated_at'    => gmdate('c'),
 			'url'             => isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash((string) $_SERVER['REQUEST_URI'])) : '',
 		];
+	}
+
+	/**
+	 * خلاصه زمان کل + جزئیات سهم هر بخش.
+	 *
+	 * @return array{
+	 *   total_ms:float,
+	 *   total_human:string,
+	 *   items:list<array{key:string,label:string,ms:float,sec:float,human:string,percent:float,count:int,note:string}>
+	 * }
+	 */
+	private function buildTimeBreakdown(float $totalMs): array
+	{
+		$queryMs = 0.0;
+		foreach ($this->queries as $q) {
+			$queryMs += (float) ($q['time_ms'] ?? 0);
+		}
+
+		$networkMs = 0.0;
+		$networkCount = 0;
+		foreach ($this->network as $n) {
+			if (! empty($n['blocking'])) {
+				$networkMs += (float) ($n['time_ms'] ?? 0);
+				$networkCount++;
+			}
+		}
+
+		$hooksMs = 0.0;
+		foreach ($this->hooks as $h) {
+			$hooksMs += (float) ($h['cpu_ms'] ?? 0);
+		}
+
+		$cronMs = 0.0;
+		$cronCount = 0;
+		foreach ($this->cronEvents as $c) {
+			if (($c['type'] ?? '') === 'action_scheduler' || ($c['type'] ?? '') === 'schedule') {
+				$cronCount++;
+			}
+			if (isset($c['duration_ms'])) {
+				$cronMs += (float) $c['duration_ms'];
+			}
+		}
+
+		// سایر = باقی‌مانده دیوار زمانی پس از کوئری و شبکه مسدودکننده
+		$accounted = $queryMs + $networkMs;
+		$otherMs   = max(0.0, $totalMs - $accounted);
+
+		$raw = [
+			[
+				'key'   => 'queries',
+				'label' => 'کوئری‌های دیتابیس',
+				'ms'    => $queryMs,
+				'count' => count($this->queries),
+				'note'  => 'مجموع زمان اجرای SQL',
+			],
+			[
+				'key'   => 'network',
+				'label' => 'درخواست‌های شبکه (مسدودکننده)',
+				'ms'    => $networkMs,
+				'count' => $networkCount,
+				'note'  => 'wp_remote_* / HTTP مسدودکننده',
+			],
+			[
+				'key'   => 'hooks',
+				'label' => 'هوک‌های کلیدی اندازه‌گیری‌شده',
+				'ms'    => $hooksMs,
+				'count' => count($this->hooks),
+				'note'  => 'ممکن است با کوئری هم‌پوشانی داشته باشد؛ جداگانه نمایش داده می‌شود',
+			],
+			[
+				'key'   => 'other',
+				'label' => 'سایر پردازش PHP / قالب / افزونه‌ها',
+				'ms'    => $otherMs,
+				'count' => 0,
+				'note'  => 'باقی‌مانده زمان کل پس از کوئری و شبکه',
+			],
+		];
+
+		if ($cronCount > 0) {
+			$raw[] = [
+				'key'   => 'cron',
+				'label' => 'رویدادهای زمان‌بندی‌شده',
+				'ms'    => $cronMs,
+				'count' => $cronCount,
+				'note'  => 'WP-Cron / Action Scheduler در همین درخواست',
+			];
+		}
+
+		$items = [];
+		foreach ($raw as $row) {
+			$ms = (float) $row['ms'];
+			$pct = $totalMs > 0 ? ($ms / $totalMs) * 100 : 0.0;
+			$items[] = [
+				'key'     => $row['key'],
+				'label'   => $row['label'],
+				'ms'      => round($ms, 2),
+				'sec'     => round($ms / 1000, 3),
+				'human'   => self::formatDuration($ms),
+				'percent' => round($pct, 1),
+				'count'   => (int) $row['count'],
+				'note'    => $row['note'],
+			];
+		}
+
+		return [
+			'total_ms'    => round($totalMs, 2),
+			'total_sec'   => round($totalMs / 1000, 3),
+			'total_human' => self::formatDuration($totalMs),
+			'items'       => $items,
+			'summary_fa'  => $this->buildSummaryFa($totalMs, $items),
+		];
+	}
+
+	/**
+	 * @param list<array{label:string,human:string,percent:float,count:int,key:string}> $items
+	 */
+	private function buildSummaryFa(float $totalMs, array $items): string
+	{
+		$parts = [];
+		foreach ($items as $item) {
+			if (($item['key'] ?? '') === 'hooks') {
+				continue; // در جمله خلاصه فقط اجزای غیرهم‌پوشان
+			}
+			if ((float) ($item['ms'] ?? 0) <= 0 && (int) ($item['count'] ?? 0) === 0) {
+				continue;
+			}
+			$extra = ((int) ($item['count'] ?? 0) > 0) ? ' (' . (int) $item['count'] . ' مورد)' : '';
+			$parts[] = $item['label'] . ': ' . $item['human'] . ' — ' . $item['percent'] . '٪' . $extra;
+		}
+
+		return 'کل زمان لود: ' . self::formatDuration($totalMs) . '. جزئیات: ' . implode(' | ', $parts);
+	}
+
+	/**
+	 * نمایش خوانای مدت زمان به فارسی.
+	 */
+	public static function formatDuration(float $ms): string
+	{
+		if ($ms >= 1000) {
+			$sec = $ms / 1000;
+			if ($sec >= 60) {
+				$min = (int) floor($sec / 60);
+				$rem = $sec - ($min * 60);
+				return $min . ' دقیقه و ' . number_format($rem, 2) . ' ثانیه';
+			}
+			return number_format($sec, 3) . ' ثانیه';
+		}
+		return number_format($ms, 2) . ' میلی‌ثانیه';
 	}
 
 	/**

@@ -62,7 +62,53 @@
       .replace(/"/g, '&quot;');
   }
 
+  function renderBreakdown(snap) {
+    var el = $('#sp-breakdown');
+    if (!el) return;
+    var bd = snap.time_breakdown || {};
+    var items = bd.items || [];
+    if (!items.length) {
+      el.innerHTML = '<p class="sp-meta">پس از روشن کردن ضبط و تازه‌سازی صفحه، خلاصه زمان اینجا نمایش داده می‌شود.</p>';
+      return;
+    }
+
+    var colors = {
+      queries: '#3dba9c',
+      network: '#e0a45c',
+      hooks: '#6ea8fe',
+      other: '#93a4b8',
+      cron: '#c084fc'
+    };
+
+    var stacked = items.filter(function (i) {
+      return i.key === 'queries' || i.key === 'network' || i.key === 'other';
+    }).map(function (i) {
+      var w = Math.max(0, Math.min(100, i.percent || 0));
+      return '<span style="width:' + w + '%;background:' + (colors[i.key] || '#3dba9c') + '" title="' + esc(i.label) + '"></span>';
+    }).join('');
+
+    var rows = items.map(function (i) {
+      var count = i.count ? (' — ' + i.count + ' مورد') : '';
+      return '<div class="sp-row sp-breakdown-row">' +
+        '<div><strong>' + esc(i.label) + '</strong>' +
+        '<div class="sp-meta">' + esc(i.note || '') + count + '</div>' +
+        '<div class="sp-bar"><span style="width:' + Math.min(100, i.percent || 0) + '%;background:' + (colors[i.key] || '#3dba9c') + '"></span></div></div>' +
+        '<div class="sp-breakdown-nums"><strong>' + esc(i.human) + '</strong>' +
+        '<span class="sp-badge">' + esc(i.percent) + '٪</span></div></div>';
+    }).join('');
+
+    el.innerHTML =
+      '<div class="sp-breakdown-total">' +
+        '<div class="sp-breakdown-total__label">کل زمان مصرف‌شده برای لود</div>' +
+        '<div class="sp-breakdown-total__value">' + esc(bd.total_human || snap.total_human || '—') + '</div>' +
+        '<div class="sp-meta">' + esc(bd.summary_fa || '') + '</div>' +
+        '<div class="sp-breakdown-stack">' + stacked + '</div>' +
+      '</div>' +
+      '<div class="sp-list">' + rows + '</div>';
+  }
+
   function renderTimeline(snap) {
+    renderBreakdown(snap);
     var el = $('#sp-timeline');
     if (!el) return;
     var max = 1;

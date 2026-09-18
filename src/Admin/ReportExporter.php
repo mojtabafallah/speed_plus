@@ -74,13 +74,28 @@ final class ReportExporter
 	private function toHtml(array $payload): string
 	{
 		$snap = is_array($payload['snapshot'] ?? null) ? $payload['snapshot'] : [];
-		$ttfb = esc_html((string) ($snap['ttfb_ms'] ?? '—'));
+		$total = esc_html((string) ($snap['total_human'] ?? ($snap['ttfb_ms'] ?? '—') . ' ms'));
 		$q    = esc_html((string) ($snap['query_count'] ?? '—'));
 		$mem  = esc_html((string) ($snap['memory_mb'] ?? '—'));
 		$slow = esc_html((string) ($snap['slowest_source'] ?? '—'));
 		$site = esc_html((string) ($payload['site'] ?? ''));
 		$gen  = esc_html((string) ($payload['generated'] ?? ''));
 		$ai   = esc_html((string) ($payload['ai'] ?? 'تحلیل هوش مصنوعی هنوز اجرا نشده است.'));
+
+		$bdHtml = '';
+		$bd     = is_array($snap['time_breakdown'] ?? null) ? $snap['time_breakdown'] : [];
+		if (! empty($bd['summary_fa'])) {
+			$bdHtml .= '<p>' . esc_html((string) $bd['summary_fa']) . '</p>';
+		}
+		if (! empty($bd['items']) && is_array($bd['items'])) {
+			$bdHtml .= '<ul>';
+			foreach ($bd['items'] as $item) {
+				$bdHtml .= '<li><strong>' . esc_html((string) ($item['label'] ?? '')) . '</strong>: '
+					. esc_html((string) ($item['human'] ?? '')) . ' ('
+					. esc_html((string) ($item['percent'] ?? '0')) . '٪)</li>';
+			}
+			$bdHtml .= '</ul>';
+		}
 
 		return <<<HTML
 <!DOCTYPE html>
@@ -101,16 +116,20 @@ h1,h2{color:#7dd3c0}
 <h1>کارنامه سلامت و بهینه‌سازی سایت</h1>
 <p>سایت: {$site}<br/>زمان تولید: {$gen}</p>
 <div class="card grid">
-  <div class="metric">TTFB (ms)<b>{$ttfb}</b></div>
+  <div class="metric">کل زمان لود<b>{$total}</b></div>
   <div class="metric">تعداد کوئری<b>{$q}</b></div>
   <div class="metric">رم (MB)<b>{$mem}</b></div>
   <div class="metric">کندترین منبع<b>{$slow}</b></div>
 </div>
 <div class="card">
+  <h2>جزئیات زمان</h2>
+  {$bdHtml}
+</div>
+<div class="card">
   <h2>تحلیل هوش مصنوعی</h2>
   <pre style="white-space:pre-wrap">{$ai}</pre>
 </div>
-<p>این گزارش توسط اسپید‌پالس پرو اولترا تولید شده است.</p>
+<p>این گزارش توسط اسپید‌پالس پرو اولترا — Mojtaba Fallah تولید شده است.</p>
 </body>
 </html>
 HTML;
