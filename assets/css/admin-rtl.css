@@ -27,6 +27,80 @@
   box-shadow: inset 0 -2px 0 var(--sp-accent);
 }
 
+#wpadminbar .speedpulse-adminbar.is-inflated > .ab-item {
+  color: #f0c674 !important;
+  box-shadow: inset 0 -2px 0 var(--sp-warn);
+}
+
+.sp-clarity-alert {
+  background: linear-gradient(135deg, rgba(224, 164, 92, .16), rgba(224, 108, 117, .1));
+  border: 1px solid rgba(224, 164, 92, .45);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.sp-clarity-alert__title {
+  color: #f0c674;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sp-clarity-alert p {
+  margin: 0 0 10px;
+  color: #e7ecf3;
+  line-height: 1.7;
+}
+
+.sp-clarity-alert__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sp-clarity-alert__grid > div {
+  background: rgba(15, 20, 25, .55);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.sp-clarity-alert__grid b {
+  display: block;
+  color: #f0c674;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.sp-clarity-alert__grid span {
+  color: #93a4b8;
+  font-size: 11px;
+}
+
+.sp-clarity-alert__steps {
+  margin: 0 0 12px;
+  padding-right: 18px;
+  color: #d5e0ec;
+  line-height: 1.8;
+}
+
+.sp-browser-hero.is-inflated {
+  border-color: rgba(224, 108, 117, .4);
+}
+
+.sp-browser-hero__fair {
+  margin: 4px 0 10px;
+  color: #7dd3c0;
+  font-size: 14px;
+}
+
+@media (max-width: 720px) {
+  .sp-clarity-alert__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .speedpulse-drawer {
   position: fixed;
   inset: 0;
