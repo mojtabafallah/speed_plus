@@ -325,6 +325,200 @@
   background: linear-gradient(90deg, #2f9e85, #67d3b3);
 }
 
+/* —— لودینگ سراسری AJAX —— */
+.sp-ajax-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 10, 16, .55);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease;
+  direction: rtl;
+  font-family: var(--sp-font);
+}
+
+.sp-ajax-loader.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sp-ajax-loader__card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: min(360px, 88vw);
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #15202c 0%, #0f161f 100%);
+  border: 1px solid rgba(61, 186, 156, .35);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  color: var(--sp-text);
+  animation: spPop .28s cubic-bezier(.2, .9, .2, 1);
+}
+
+.sp-ajax-loader__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sp-ajax-loader__text strong {
+  color: var(--sp-accent);
+  font-size: 15px;
+}
+
+.sp-ajax-loader__text span {
+  color: var(--sp-muted);
+  font-size: 13px;
+}
+
+.sp-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .12);
+  border-top-color: var(--sp-accent);
+  animation: spSpin .75s linear infinite;
+  flex-shrink: 0;
+}
+
+.sp-spinner--sm {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+.sp-panel-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 14px;
+  color: var(--sp-muted);
+  background: rgba(24, 34, 48, .55);
+  border: 1px dashed var(--sp-line);
+  border-radius: 10px;
+}
+
+@keyframes spSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spPop {
+  from { opacity: 0; transform: translateY(10px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* —— مودال پیام —— */
+.sp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease;
+  direction: rtl;
+  font-family: var(--sp-font);
+}
+
+.sp-modal.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sp-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 8, 14, .6);
+  backdrop-filter: blur(3px);
+}
+
+.sp-modal__dialog {
+  position: relative;
+  width: min(420px, 92vw);
+  padding: 28px 24px 22px;
+  border-radius: 18px;
+  background: linear-gradient(165deg, #172230 0%, #101821 100%);
+  border: 1px solid var(--sp-line);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .5);
+  text-align: center;
+  color: var(--sp-text);
+  animation: spPop .3s cubic-bezier(.2, .9, .2, 1);
+}
+
+.sp-modal__icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  background: rgba(61, 186, 156, .15);
+  color: var(--sp-accent);
+}
+
+.sp-modal--success .sp-modal__icon {
+  background: rgba(61, 186, 156, .18);
+  color: #67d3b3;
+}
+
+.sp-modal--error .sp-modal__icon {
+  background: rgba(224, 108, 117, .18);
+  color: #e06c75;
+}
+
+.sp-modal--warn .sp-modal__icon {
+  background: rgba(224, 164, 92, .18);
+  color: #e0a45c;
+}
+
+.sp-modal--info .sp-modal__icon {
+  background: rgba(110, 168, 254, .18);
+  color: #6ea8fe;
+}
+
+.sp-modal__title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  color: #e8eef6;
+}
+
+.sp-modal__body {
+  margin: 0 0 18px;
+  color: var(--sp-muted);
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.sp-modal__btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 10px 22px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #2f9e85, #3dba9c);
+  color: #061016;
+  font-weight: 700;
+  font-family: inherit;
+  font-size: 14px;
+  transition: transform .15s ease, filter .15s ease;
+}
+
+.sp-modal__btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
 @media (max-width: 640px) {
   .speedpulse-drawer__panel {
     width: 100vw;

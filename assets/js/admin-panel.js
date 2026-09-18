@@ -1,11 +1,14 @@
 /**
  * اسپید‌پالس پرو — تعاملات پنل ادمین (فارسی)
+ * لودینگ AJAX + مودال پیام به‌جای alert
  */
 (function () {
   'use strict';
 
   var D = window.SpeedPulseData || {};
-  var drawer, panels;
+  var drawer;
+  var ajaxBusy = 0;
+  var modalTimer = null;
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -15,18 +18,189 @@
     return Array.prototype.slice.call((root || document).querySelectorAll(sel));
   }
 
-  function post(action, data) {
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function ensureUi() {
+    if ($('#speedpulse-ajax-loader')) return;
+
+    var loader = document.createElement('div');
+    loader.id = 'speedpulse-ajax-loader';
+    loader.className = 'sp-ajax-loader';
+    loader.setAttribute('aria-hidden', 'true');
+    loader.innerHTML =
+      '<div class="sp-ajax-loader__card" role="status" aria-live="polite">' +
+        '<div class="sp-spinner" aria-hidden="true"></div>' +
+        '<div class="sp-ajax-loader__text">' +
+          '<strong id="sp-loader-title">لطفاً صبر کنید</strong>' +
+          '<span id="sp-loader-msg">در حال دریافت اطلاعات…</span>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(loader);
+
+    var modal = document.createElement('div');
+    modal.id = 'speedpulse-modal';
+    modal.className = 'sp-modal';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML =
+      '<div class="sp-modal__backdrop" data-sp-modal-close></div>' +
+      '<div class="sp-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="sp-modal-title">' +
+        '<div class="sp-modal__icon" id="sp-modal-icon"></div>' +
+        '<h3 id="sp-modal-title" class="sp-modal__title"></h3>' +
+        '<p id="sp-modal-body" class="sp-modal__body"></p>' +
+        '<button type="button" class="sp-modal__btn" data-sp-modal-close>متوجه شدم</button>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', function (e) {
+      if (e.target && e.target.matches && e.target.matches('[data-sp-modal-close]')) {
+        hideModal();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') hideModal();
+    });
+  }
+
+  function showLoader(message, title) {
+    ensureUi();
+    ajaxBusy++;
+    var el = $('#speedpulse-ajax-loader');
+    var msg = $('#sp-loader-msg');
+    var ttl = $('#sp-loader-title');
+    if (msg) msg.textContent = message || 'در حال دریافت اطلاعات…';
+    if (ttl) ttl.textContent = title || 'لطفاً صبر کنید';
+    el.classList.add('is-visible');
+    el.setAttribute('aria-hidden', 'false');
+    document.documentElement.classList.add('sp-ajax-busy');
+  }
+
+  function hideLoader() {
+    ajaxBusy = Math.max(0, ajaxBusy - 1);
+    if (ajaxBusy > 0) return;
+    var el = $('#speedpulse-ajax-loader');
+    if (!el) return;
+    el.classList.remove('is-visible');
+    el.setAttribute('aria-hidden', 'true');
+    document.documentElement.classList.remove('sp-ajax-busy');
+  }
+
+  /**
+   * مودال خوش‌فرم به‌جای alert
+   * @param {string} message
+   * @param {{type?: string, title?: string, autoClose?: number}} opts
+   */
+  function notify(message, opts) {
+    ensureUi();
+    opts = opts || {};
+    var type = opts.type || 'info';
+    var title = opts.title || ({
+      success: 'انجام شد',
+      error: 'خطا',
+      warn: 'توجه',
+      info: 'پیام سیستم'
+    }[type] || 'پیام سیستم');
+
+    var icons = {
+      success: '✓',
+      error: '!',
+      warn: '⚠',
+      info: 'ℹ'
+    };
+
+    var modal = $('#speedpulse-modal');
+    var icon = $('#sp-modal-icon');
+    var ttl = $('#sp-modal-title');
+    var body = $('#sp-modal-body');
+
+    modal.className = 'sp-modal is-open sp-modal--' + type;
+    if (icon) icon.textContent = icons[type] || 'ℹ';
+    if (ttl) ttl.textContent = title;
+    if (body) body.textContent = message || '';
+    modal.setAttribute('aria-hidden', 'false');
+
+    if (modalTimer) clearTimeout(modalTimer);
+    if (opts.autoClose !== false) {
+      var ms = typeof opts.autoClose === 'number' ? opts.autoClose : 4200;
+      modalTimer = setTimeout(hideModal, ms);
+    }
+  }
+
+  function hideModal() {
+    var modal = $('#speedpulse-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    if (modalTimer) {
+      clearTimeout(modalTimer);
+      modalTimer = null;
+    }
+  }
+
+  function setPanelLoading(el, text) {
+    if (!el) return;
+    el.classList.add('is-loading');
+    el.innerHTML =
+      '<div class="sp-panel-loading">' +
+        '<div class="sp-spinner sp-spinner--sm"></div>' +
+        '<span>' + esc(text || 'در حال بارگذاری…') + '</span>' +
+      '</div>';
+  }
+
+  function clearPanelLoading(el) {
+    if (el) el.classList.remove('is-loading');
+  }
+
+  /**
+   * @param {string} action
+   * @param {Object=} data
+   * @param {{loading?: boolean|string, loadingTitle?: string, target?: Element|null, targetText?: string}=} options
+   */
+  function post(action, data, options) {
+    options = options || {};
+    var useGlobal = options.loading !== false;
+    var loadingMsg = typeof options.loading === 'string' ? options.loading : 'در حال ارسال درخواست…';
+
+    if (useGlobal) {
+      showLoader(loadingMsg, options.loadingTitle || 'لطفاً صبر کنید');
+    }
+    if (options.target) {
+      setPanelLoading(options.target, options.targetText || loadingMsg);
+    }
+
     var fd = new FormData();
     fd.append('action', action);
     fd.append('_ajax_nonce', D.nonce || '');
     Object.keys(data || {}).forEach(function (k) {
       fd.append(k, data[k]);
     });
+
     return fetch(D.ajaxUrl, {
       method: 'POST',
       credentials: 'same-origin',
       body: fd
-    }).then(function (r) { return r.json(); });
+    })
+      .then(function (r) {
+        return r.json().catch(function () {
+          throw new Error('پاسخ نامعتبر از سرور');
+        });
+      })
+      .catch(function (err) {
+        notify((err && err.message) ? err.message : 'ارتباط با سرور برقرار نشد.', {
+          type: 'error',
+          title: 'خطای ارتباط'
+        });
+        throw err;
+      })
+      .finally(function () {
+        if (useGlobal) hideLoader();
+        if (options.target) clearPanelLoading(options.target);
+      });
   }
 
   function openDrawer() {
@@ -52,14 +226,6 @@
     if (name === 'errors') loadErrors();
     if (name === 'woo') loadWoo();
     if (name === 'queries') loadIndexes();
-  }
-
-  function esc(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 
   function renderBreakdown(snap) {
@@ -183,8 +349,19 @@
   }
 
   function refreshSnapshot() {
-    post('speedpulse_snapshot').then(function (res) {
-      if (!res || !res.success) return;
+    var targets = [$('#sp-breakdown'), $('#sp-timeline'), $('#sp-queries'), $('#sp-sources')].filter(Boolean);
+    targets.forEach(function (el) {
+      setPanelLoading(el, 'در حال دریافت خط زمان و آمار…');
+    });
+
+    post('speedpulse_snapshot', {}, {
+      loading: 'در حال دریافت داده‌های پروفایلینگ…',
+      loadingTitle: 'بارگذاری خط زمان'
+    }).then(function (res) {
+      if (!res || !res.success) {
+        notify((res && res.data && res.data.message) || 'دریافت اسنپ‌شات ناموفق بود.', { type: 'error' });
+        return;
+      }
       var snap = res.data.snapshot || {};
       renderTimeline(snap);
       renderQueries(snap);
@@ -195,11 +372,16 @@
 
   function loadErrors() {
     var el = $('#sp-errors');
-    if (!el) return;
-    el.innerHTML = '<p class="sp-meta">' + (D.i18n && D.i18n.loading ? D.i18n.loading : '…') + '</p>';
-    post('speedpulse_debug_log').then(function (res) {
+    post('speedpulse_debug_log', {}, {
+      loading: 'در حال خواندن و دسته‌بندی debug.log…',
+      loadingTitle: 'تحلیل لاگ',
+      target: el,
+      targetText: 'در حال تحلیل خطاها…'
+    }).then(function (res) {
+      if (!el) return;
       if (!res.success) {
         el.innerHTML = '<p class="sp-meta">' + esc(res.data && res.data.message) + '</p>';
+        notify((res.data && res.data.message) || 'خواندن لاگ ناموفق بود.', { type: 'error' });
         return;
       }
       var cats = res.data.categories || {};
@@ -211,14 +393,18 @@
           }).join('<br/>') +
           '</div></div><span class="sp-badge">' + esc(c.count) + '</span></div>';
       }).join('');
-    });
+    }).catch(function () {});
   }
 
   function loadWoo() {
     var el = $('#sp-woo');
-    if (!el) return;
-    post('speedpulse_woo_report').then(function (res) {
-      if (!res.success) return;
+    post('speedpulse_woo_report', {}, {
+      loading: 'در حال بررسی وضعیت ووکامرس…',
+      loadingTitle: 'جراح ووکامرس',
+      target: el,
+      targetText: 'در حال دریافت گزارش ووکامرس…'
+    }).then(function (res) {
+      if (!el || !res.success) return;
       var d = res.data;
       if (!d.active) {
         el.innerHTML = '<p class="sp-meta">' + esc(d.message) + '</p>';
@@ -228,24 +414,29 @@
         '<div class="sp-row"><div>ترنزینت منقضی ووکامرس</div><strong>' + esc(d.expired_transients) + '</strong></div>' +
         '<div class="sp-row"><div>نشست منقضی</div><strong>' + esc(d.expired_sessions) + '</strong></div>' +
         '<div class="sp-row"><div>متای یتیم</div><strong>' + esc(d.orphan_postmeta) + '</strong></div>';
-    });
+    }).catch(function () {});
   }
 
   function loadIndexes() {
     var el = $('#sp-indexes');
-    if (!el) return;
-    post('speedpulse_indexes').then(function (res) {
-      if (!res.success) return;
+    post('speedpulse_indexes', {}, {
+      loading: 'در حال تحلیل ایندکس‌های پیشنهادی…',
+      loadingTitle: 'بهینه‌ساز ایندکس',
+      target: el,
+      targetText: 'در حال دریافت پیشنهاد ایندکس…'
+    }).then(function (res) {
+      if (!el || !res.success) return;
       el.innerHTML = '<div class="sp-list">' + (res.data.items || []).map(function (i) {
         var btn = i.exists
           ? '<span class="sp-badge ok">موجود</span>'
           : '<button type="button" class="button" data-apply-index="' + esc(i.name) + '">ایجاد ایندکس</button>';
         return '<div class="sp-row"><div><strong>' + esc(i.table) + '</strong><div class="sp-meta">' + esc(i.reason) + '<br/><code dir="ltr">' + esc(i.sql) + '</code></div></div>' + btn + '</div>';
       }).join('') + '</div>';
-    });
+    }).catch(function () {});
   }
 
   function bind() {
+    ensureUi();
     drawer = $('#speedpulse-drawer');
     if (!drawer) return;
 
@@ -259,26 +450,56 @@
       }
       if (t.closest && t.closest('.speedpulse-toggle-recording')) {
         e.preventDefault();
-        post('speedpulse_toggle').then(function (res) {
-          if (res.success) alert(res.data.message);
-        });
+        post('speedpulse_toggle', {}, {
+          loading: 'در حال تغییر وضعیت مانیتورینگ…',
+          loadingTitle: 'مانیتورینگ'
+        }).then(function (res) {
+          if (res.success) {
+            notify(res.data.message, {
+              type: res.data.enabled ? 'success' : 'warn',
+              title: res.data.enabled ? 'مانیتورینگ روشن شد' : 'مانیتورینگ خاموش شد'
+            });
+          } else {
+            notify((res.data && res.data.message) || 'تغییر وضعیت ناموفق بود.', { type: 'error' });
+          }
+        }).catch(function () {});
       }
       if (t.matches && t.matches('[data-sp-close]')) closeDrawer();
       if (t.matches && t.matches('.speedpulse-tabs button')) switchTab(t.getAttribute('data-tab'));
       if (t.matches && t.matches('[data-apply-index]')) {
-        post('speedpulse_apply_index', { name: t.getAttribute('data-apply-index') }).then(function (res) {
-          alert((res.data && res.data.message) || '');
+        post('speedpulse_apply_index', { name: t.getAttribute('data-apply-index') }, {
+          loading: 'در حال ایجاد ایندکس…',
+          loadingTitle: 'ایندکس دیتابیس'
+        }).then(function (res) {
+          notify((res.data && res.data.message) || '', {
+            type: res.success ? 'success' : 'error',
+            title: res.success ? 'ایندکس' : 'خطا'
+          });
           loadIndexes();
-        });
+        }).catch(function () {});
       }
       if (t.matches && t.matches('[data-woo-clean]')) {
-        post('speedpulse_woo_cleanup', { target: t.getAttribute('data-woo-clean') }).then(function (res) {
-          alert((res.data && res.data.message) || '');
+        post('speedpulse_woo_cleanup', { target: t.getAttribute('data-woo-clean') }, {
+          loading: 'در حال پاک‌سازی دیتابیس ووکامرس…',
+          loadingTitle: 'پاک‌سازی'
+        }).then(function (res) {
+          notify((res.data && res.data.message) || '', {
+            type: res.success ? 'success' : 'error'
+          });
           loadWoo();
-        });
+        }).catch(function () {});
       }
       if (t.matches && t.matches('[data-crawl]')) {
-        post('speedpulse_crawler', { cmd: t.getAttribute('data-crawl') }).then(function (res) {
+        var cmd = t.getAttribute('data-crawl');
+        post('speedpulse_crawler', { cmd: cmd }, {
+          loading: 'در حال اجرای فرمان خزش‌گر…',
+          loadingTitle: 'خزش‌گر سایت',
+          target: $('#sp-crawler'),
+          targetText: 'در حال به‌روزرسانی وضعیت خزش…'
+        }).then(function (res) {
+          if (res.data && res.data.message) {
+            notify(res.data.message, { type: 'success', title: 'خزش‌گر' });
+          }
           var st = res.data && res.data.state ? res.data.state : {};
           var box = $('#sp-crawler');
           var bar = $('#sp-crawler-bar');
@@ -290,7 +511,7 @@
                 return '<div class="sp-row"><div class="sp-sql">' + esc(r.url) + '</div><strong>' + esc(r.ttfb_ms) + ' ms</strong></div>';
               }).join('') + '</div>';
           }
-        });
+        }).catch(function () {});
       }
     });
 
@@ -298,19 +519,28 @@
     if (refreshLog) refreshLog.addEventListener('click', loadErrors);
     var clearLog = $('#sp-clear-log');
     if (clearLog) clearLog.addEventListener('click', function () {
-      post('speedpulse_clear_log').then(function (res) {
-        alert((res.data && res.data.message) || '');
+      post('speedpulse_clear_log', {}, {
+        loading: 'در حال پاک‌سازی فایل لاگ…',
+        loadingTitle: 'پاک‌سازی لاگ'
+      }).then(function (res) {
+        notify((res.data && res.data.message) || '', {
+          type: res.success ? 'success' : 'error'
+        });
         loadErrors();
-      });
+      }).catch(function () {});
     });
 
     var stress = $('#sp-stress-run');
     if (stress) stress.addEventListener('click', function () {
       var out = $('#sp-stress-result');
-      if (out) out.innerHTML = '<p class="sp-meta">در حال اجرای تست فشار…</p>';
       post('speedpulse_stress', {
         concurrency: ($('#sp-stress-c') || {}).value || 50,
         duration: ($('#sp-stress-d') || {}).value || 5
+      }, {
+        loading: 'در حال اجرای تست فشار — ممکن است چند ثانیه طول بکشد…',
+        loadingTitle: 'تست فشار',
+        target: out,
+        targetText: 'در حال شبیه‌سازی ترافیک همزمان…'
       }).then(function (res) {
         if (!out) return;
         var d = res.data || {};
@@ -319,49 +549,86 @@
           '<div class="sp-row"><div>P95</div><strong>' + esc(d.p95_ttfb_ms) + ' ms</strong></div>' +
           '<div class="sp-row"><div>افت TTFB</div><strong>' + esc(d.ttfb_drop_pct) + '٪</strong></div>' +
           '<div class="sp-row"><div>پایداری</div><strong>' + (d.stable ? 'پایدار' : 'ناسپایدار') + '</strong></div>';
-      });
+        notify(d.message || 'تست فشار به پایان رسید.', {
+          type: d.stable ? 'success' : 'warn',
+          title: 'نتیجه تست فشار'
+        });
+      }).catch(function () {});
     });
 
     var aiRun = $('#sp-ai-run');
     if (aiRun) aiRun.addEventListener('click', function () {
       var out = $('#sp-ai-out');
-      if (out) out.textContent = 'در حال ارسال داده به هوش مصنوعی…';
-      post('speedpulse_ai_analyze').then(function (res) {
+      post('speedpulse_ai_analyze', {}, {
+        loading: 'در حال ارسال داده به هوش مصنوعی…',
+        loadingTitle: 'تحلیل هوشمند',
+        target: out,
+        targetText: 'در انتظار پاسخ مدل…'
+      }).then(function (res) {
         if (out) out.textContent = (res.data && (res.data.content || res.data.message)) || 'خطا';
-      });
+        notify(res.success ? 'تحلیل هوش مصنوعی آماده شد.' : ((res.data && res.data.message) || 'خطا'), {
+          type: res.success ? 'success' : 'error',
+          title: 'هوش مصنوعی'
+        });
+      }).catch(function () {});
     });
 
     var patchGen = $('#sp-patch-gen');
     if (patchGen) patchGen.addEventListener('click', function () {
-      post('speedpulse_patch_generate').then(function (res) {
+      post('speedpulse_patch_generate', {}, {
+        loading: 'در حال تولید پچ بهینه‌ساز…',
+        loadingTitle: 'تولید پچ'
+      }).then(function (res) {
         var d = res.data || {};
         var code = $('#sp-patch-code');
         var diff = $('#sp-patch-diff');
         if (code) code.value = d.code || '';
         if (diff) diff.textContent = d.diff || d.message || '';
-      });
+        notify(d.message || (res.success ? 'پیش‌نویس پچ آماده شد.' : 'تولید پچ ناموفق بود.'), {
+          type: res.success ? 'success' : 'error',
+          title: 'پچ بهینه‌ساز'
+        });
+      }).catch(function () {});
     });
 
     var patchSave = $('#sp-patch-save');
     if (patchSave) patchSave.addEventListener('click', function () {
       var code = ($('#sp-patch-code') || {}).value || '';
-      post('speedpulse_patch_save', { code: code }).then(function (res) {
-        alert((res.data && res.data.message) || '');
-      });
+      post('speedpulse_patch_save', { code: code }, {
+        loading: 'در حال ذخیره پیش‌نویس پچ…',
+        loadingTitle: 'ذخیره پچ'
+      }).then(function (res) {
+        notify((res.data && res.data.message) || '', {
+          type: res.success ? 'success' : 'error'
+        });
+      }).catch(function () {});
     });
 
     var canary = $('#sp-patch-canary');
     if (canary) canary.addEventListener('click', function () {
-      post('speedpulse_patch_canary').then(function (res) {
-        alert((res.data && res.data.message) || (res.data && res.data.message) || 'نتیجه Canary');
-      });
+      post('speedpulse_patch_canary', {}, {
+        loading: 'در حال اجرای آزمایش Canary…',
+        loadingTitle: 'Canary امن'
+      }).then(function (res) {
+        notify((res.data && res.data.message) || 'نتیجه Canary', {
+          type: res.success ? 'success' : 'error',
+          title: 'نتیجه Canary',
+          autoClose: 6000
+        });
+      }).catch(function () {});
     });
 
     var rollback = $('#sp-patch-rollback');
     if (rollback) rollback.addEventListener('click', function () {
-      post('speedpulse_patch_rollback').then(function (res) {
-        alert((res.data && res.data.message) || '');
-      });
+      post('speedpulse_patch_rollback', {}, {
+        loading: 'در حال بازگشت امن پچ…',
+        loadingTitle: 'Rollback'
+      }).then(function (res) {
+        notify((res.data && res.data.message) || '', {
+          type: res.success ? 'success' : 'error',
+          title: 'بازگشت امن'
+        });
+      }).catch(function () {});
     });
 
     var form = $('#speedpulse-settings-form');
@@ -374,10 +641,16 @@
         ['capture_queries', 'capture_hooks', 'capture_network'].forEach(function (k) {
           if (!payload[k]) payload[k] = '';
         });
-        post('speedpulse_save_settings', payload).then(function (res) {
+        post('speedpulse_save_settings', payload, {
+          loading: 'در حال ذخیره تنظیمات…',
+          loadingTitle: 'تنظیمات'
+        }).then(function (res) {
           var msg = $('#speedpulse-settings-msg');
           if (msg) msg.textContent = (res.data && res.data.message) || '';
-        });
+          notify((res.data && res.data.message) || 'تنظیمات ذخیره شد.', {
+            type: res.success ? 'success' : 'error'
+          });
+        }).catch(function () {});
       });
     }
 
