@@ -26,6 +26,19 @@ final class AdminBar
 		add_action('admin_bar_menu', [$this, 'render'], 100);
 		add_action('admin_enqueue_scripts', [$this, 'assets']);
 		add_action('wp_enqueue_scripts', [$this, 'assets']);
+		// روی فرانت نوار ادمین برای مدیر همیشه دیده شود تا اسپید‌پالس در دسترس باشد
+		add_filter('show_admin_bar', [$this, 'forceAdminBar'], 1000);
+	}
+
+	/**
+	 * @param bool $show
+	 */
+	public function forceAdminBar($show): bool
+	{
+		if (is_user_logged_in() && current_user_can('manage_options')) {
+			return true;
+		}
+		return (bool) $show;
 	}
 
 	public function assets(): void

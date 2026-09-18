@@ -51,7 +51,7 @@ final class Plugin
 	{
 		(new RequestBlocker())->boot();
 
-		// سربار نزدیک به صفر وقتی ضبط خاموش است.
+		// سربار نزدیک به صفر وقتی ضبط خاموش است — روی ادمین و فرانت.
 		if ($this->profiler->isEnabled()) {
 			$this->profiler->start();
 			(new QueryProfiler($this->profiler))->boot();
@@ -61,9 +61,12 @@ final class Plugin
 			(new WooSurgeon($this->profiler))->boot();
 		}
 
+		// نوار ادمین + پنل کشویی: برای کاربر مدیریت، در همه صفحات (فرانت و داشبورد)
+		(new AdminBar($this->profiler))->boot();
+		(new Drawer($this->profiler))->boot();
+
+		// AJAX / ابزارهای ادمین (admin-ajax.php هم is_admin است)
 		if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
-			(new AdminBar($this->profiler))->boot();
-			(new Drawer($this->profiler))->boot();
 			(new SettingsPage())->boot();
 			(new AjaxHandlers($this->profiler))->boot();
 			(new ReportExporter($this->profiler))->boot();
