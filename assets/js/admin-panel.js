@@ -14,8 +14,12 @@
   var lastBrowser = D.browserMetrics || null;
   var lastTips = [];
   var lastSystem = null;
+  var lastLive = null;
+  var lastErrorCount = null;
+  var lastWooJunk = null;
   var liveTimer = null;
   var selectedBrowserType = null;
+  var exportingImage = false;
 
   var BREAKDOWN_MAP = {
     queries: {
@@ -246,6 +250,7 @@
     if (name === 'system') loadSystem();
     if (name === 'live') startLive();
     else stopLive();
+    if (name === 'total') renderTotalSummary();
 
     if (scrollId) {
       setTimeout(function () {
@@ -257,6 +262,189 @@
         }
       }, 80);
     }
+  }
+
+  function breakdownItem(key) {
+    var items = (((lastSnap || {}).time_breakdown || {}).items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].key === key) return items[i];
+    }
+    return null;
+  }
+
+  function setTabMetric(key, text) {
+    var el = document.querySelector('[data-tab-metric="' + key + '"]');
+    if (el) el.textContent = text || '—';
+  }
+
+  function sumAttributionCpu(snap) {
+    var total = 0;
+    var attr = (snap || {}).attribution || {};
+    Object.keys(attr).forEach(function (k) {
+      total += parseFloat(attr[k].cpu) || 0;
+    });
+    return total;
+  }
+
+  function updateTabMetrics() {
+    var snap = lastSnap || {};
+    var browser = lastBrowser || {};
+    var bd = snap.time_breakdown || {};
+    var q = breakdownItem('queries');
+    var n = breakdownItem('network');
+    var h = breakdownItem('hooks');
+
+    var timelineVal = browser.browser_wall_human || bd.total_human || snap.total_human || '—';
+    setTabMetric('timeline', timelineVal);
+
+    setTabMetric('tips', lastTips && lastTips.length ? (lastTips.length + ' مورد') : '—');
+
+    if (lastSystem && lastSystem.memory) {
+      setTabMetric('system', lastSystem.memory.usage_human || '—');
+    } else if (snap.memory_mb) {
+      setTabMetric('system', snap.memory_mb + ' MB');
+    } else {
+      setTabMetric('system', '—');
+    }
+
+    if (lastLive && lastLive.memory) {
+      setTabMetric('live', (lastLive.memory.usage_human || '—') +
+        (lastLive.memory.usage_percent != null ? (' · ' + lastLive.memory.usage_percent + '%') : ''));
+    } else {
+      setTabMetric('live', '—');
+    }
+
+    if (q) {
+      setTabMetric('queries', q.human + (q.count ? (' · ' + q.count) : ''));
+    } else {
+      setTabMetric('queries', snap.query_count ? (snap.query_count + ' کوئری') : '—');
+    }
+
+    var srcCpu = sumAttributionCpu(snap);
+    if (srcCpu > 0) {
+      setTabMetric('sources', fmtTime(srcCpu));
+    } else if (n) {
+      setTabMetric('sources', n.human);
+    } else {
+      setTabMetric('sources', '—');
+    }
+
+    setTabMetric('errors', lastErrorCount != null ? (lastErrorCount + ' خطا') : '—');
+    setTabMetric('woo', lastWooJunk != null ? (lastWooJunk + ' مورد') : '—');
+    setTabMetric('dom', lastDom && lastDom.elements != null ? (lastDom.elements + ' المان') : '—');
+    setTabMetric('tools', 'ابزار');
+    setTabMetric('ai', 'AI');
+
+    var totalVal = browser.browser_wall_human || bd.total_human || snap.total_human || '—';
+    setTabMetric('total', totalVal);
+
+    var totalPanel = $('#sp-total');
+    if (totalPanel && document.querySelector('.speedpulse-tab[data-panel="total"].is-active')) {
+      renderTotalSummary();
+    }
+  }
+
+  function renderTotalSummary() {
+    var el = $('#sp-total');
+    if (!el) return;
+    var snap = lastSnap || {};
+    var browser = lastBrowser || {};
+    var bd = snap.time_breakdown || {};
+    var q = breakdownItem('queries');
+    var n = breakdownItem('network');
+    var h = breakdownItem('hooks');
+    var o = breakdownItem('other');
+    var c = breakdownItem('cron');
+    var srcCpu = sumAttributionCpu(snap);
+    var mem = (lastLive && lastLive.memory) || (lastSystem && lastSystem.memory) || {};
+    var cpu = (lastLive && lastLive.cpu) || (lastSystem && lastSystem.cpu) || {};
+
+    var rows = [
+      { label: 'زمان واقعی مرورگر (Network)', value: browser.browser_wall_human || '—', note: 'تجربه کاربر' },
+      { label: 'زمان سرور HTML', value: bd.total_human || snap.total_human || '—', note: 'ساخت صفحه در PHP' },
+      { label: 'جمع کوئری‌ها', value: q ? (q.human + (q.count ? ' (' + q.count + ' عدد)' : '')) : '—', note: 'مجموع زمان SQL' },
+      { label: 'شبکه مسدودکننده', value: n ? (n.human + (n.count ? ' (' + n.count + ')' : '')) : '—', note: 'wp_remote_*' },
+      { label: 'هوک‌های کلیدی', value: h ? h.human : '—', note: 'اندازه‌گیری‌شده' },
+      { label: 'سایر پردازش PHP', value: o ? o.human : '—', note: 'باقی‌مانده' },
+      { label: 'کرون / Action Scheduler', value: c ? c.human : '—', note: c && c.count ? (c.count + ' رویداد') : '' },
+      { label: 'سهم منابع (CPU نسبت‌شده)', value: srcCpu ? fmtTime(srcCpu) : '—', note: Object.keys(snap.attribution || {}).length + ' منبع' },
+      { label: 'رم درگیر', value: mem.usage_human || (snap.memory_mb ? snap.memory_mb + ' MB' : '—'), note: mem.usage_percent != null ? (mem.usage_percent + '% سقف') : '' },
+      { label: 'Load CPU', value: cpu.load_1 != null ? String(cpu.load_1) : '—', note: 'میانگین ۱ دقیقه' },
+      { label: 'راهکارهای پیشنهادی', value: lastTips && lastTips.length ? (lastTips.length + ' مورد') : '۰', note: '' },
+      { label: 'خطاهای لاگ', value: lastErrorCount != null ? String(lastErrorCount) : '—', note: '' },
+      { label: 'زباله‌های ووکامرس', value: lastWooJunk != null ? String(lastWooJunk) : '—', note: 'ترنزینت/نشست/متا' },
+      { label: 'المان‌های DOM', value: lastDom && lastDom.elements != null ? String(lastDom.elements) : '—', note: lastDom && lastDom.depth != null ? ('عمق ' + lastDom.depth) : '' },
+      { label: 'منابع Network مرورگر', value: browser.resource_count != null ? String(browser.resource_count) : '—', note: 'Heartbeat ' + (browser.heartbeat_count || 0) }
+    ];
+
+    el.innerHTML =
+      '<div class="sp-total-hero">' +
+        '<div class="sp-total-hero__label">جمع کل نمایشی</div>' +
+        '<div class="sp-total-hero__value">' + esc(browser.browser_wall_human || bd.total_human || snap.total_human || '—') + '</div>' +
+        '<p class="sp-meta">مرورگر (در صورت موجود) اولویت دارد؛ در غیر این صورت زمان سرور HTML.</p>' +
+      '</div>' +
+      '<div class="sp-list">' + rows.map(function (r) {
+        return '<div class="sp-row"><div><strong>' + esc(r.label) + '</strong>' +
+          (r.note ? '<div class="sp-meta">' + esc(r.note) + '</div>' : '') +
+          '</div><strong>' + esc(r.value) + '</strong></div>';
+      }).join('') + '</div>';
+  }
+
+  function exportPanelImage(panelName) {
+    if (exportingImage) return;
+    var panel = document.querySelector('.speedpulse-tab[data-panel="' + panelName + '"]');
+    if (!panel) {
+      notify('بخش مورد نظر پیدا نشد.', { type: 'error' });
+      return;
+    }
+    if (typeof window.html2canvas !== 'function') {
+      notify('موتور خروجی عکس بارگذاری نشده است. صفحه را تازه‌سازی کنید.', { type: 'error' });
+      return;
+    }
+
+    exportingImage = true;
+    showLoader('در حال ساخت تصویر از این بخش…', 'خروجی عکس');
+    var hidden = [];
+    $all('.sp-no-capture', panel).forEach(function (node) {
+      hidden.push({ el: node, display: node.style.display });
+      node.style.display = 'none';
+    });
+
+    var wasHidden = !panel.classList.contains('is-active');
+    if (wasHidden) {
+      panel.classList.add('is-active');
+      panel.style.display = 'block';
+    }
+
+    window.html2canvas(panel, {
+      backgroundColor: '#0f1419',
+      scale: Math.min(2, window.devicePixelRatio || 1.5),
+      useCORS: true,
+      logging: false,
+      scrollX: 0,
+      scrollY: -window.scrollY
+    }).then(function (canvas) {
+      hidden.forEach(function (h) { h.el.style.display = h.display; });
+      if (wasHidden) {
+        panel.classList.remove('is-active');
+        panel.style.display = '';
+      }
+      var link = document.createElement('a');
+      link.download = 'speedpulse-' + panelName + '-' + Date.now() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      notify('عکس بخش «' + panelName + '» دانلود شد.', { type: 'success', title: 'خروجی عکس' });
+    }).catch(function (err) {
+      hidden.forEach(function (h) { h.el.style.display = h.display; });
+      if (wasHidden) {
+        panel.classList.remove('is-active');
+        panel.style.display = '';
+      }
+      notify((err && err.message) || 'ساخت تصویر ناموفق بود.', { type: 'error' });
+    }).finally(function () {
+      exportingImage = false;
+      hideLoader();
+    });
   }
 
   function openBreakdownDetail(key) {
@@ -684,6 +872,7 @@
       }
       lastSystem = res.data.system || {};
       renderSystem(lastSystem);
+      updateTabMetrics();
     }).catch(function () {});
   }
 
@@ -803,10 +992,12 @@
   function renderLive(live) {
     var el = $('#sp-live');
     var clock = $('#sp-live-clock');
-    if (clock) clock.textContent = 'آخرین نمونه: ' + (live.at_human || '—');
+    lastLive = live || null;
+    updateTabMetrics();
+    if (clock) clock.textContent = 'آخرین نمونه: ' + ((live && live.at_human) || '—');
     if (!el) return;
-    var mem = live.memory || {};
-    var cpu = live.cpu || {};
+    var mem = (live && live.memory) || {};
+    var cpu = (live && live.cpu) || {};
     var parts = (mem.parts || []).map(function (p) {
       return '<div class="sp-row"><div><strong>' + esc(p.label) + '</strong>' +
         '<div class="sp-meta">' + esc(p.note || '') + '</div></div><strong>' + esc(p.human) + '</strong></div>';
@@ -1001,6 +1192,8 @@
       renderQueries(snap);
       renderSources(snap);
       renderDom(res.data.dom);
+      updateTabMetrics();
+      renderTotalSummary();
     }).catch(function () {});
   }
 
@@ -1019,6 +1212,12 @@
         return;
       }
       var cats = res.data.categories || {};
+      var errTotal = 0;
+      Object.keys(cats).forEach(function (name) {
+        errTotal += parseInt(cats[name].count, 10) || 0;
+      });
+      lastErrorCount = errTotal;
+      updateTabMetrics();
       el.innerHTML = Object.keys(cats).map(function (name) {
         var c = cats[name];
         return '<div class="sp-row"><div><strong>' + esc(name) + '</strong><div class="sp-meta">' +
@@ -1041,9 +1240,15 @@
       if (!el || !res.success) return;
       var d = res.data;
       if (!d.active) {
+        lastWooJunk = 0;
+        updateTabMetrics();
         el.innerHTML = '<p class="sp-meta">' + esc(d.message) + '</p>';
         return;
       }
+      lastWooJunk = (parseInt(d.expired_transients, 10) || 0) +
+        (parseInt(d.expired_sessions, 10) || 0) +
+        (parseInt(d.orphan_postmeta, 10) || 0);
+      updateTabMetrics();
       el.innerHTML =
         '<div class="sp-row"><div>ترنزینت منقضی ووکامرس</div><strong>' + esc(d.expired_transients) + '</strong></div>' +
         '<div class="sp-row"><div>نشست منقضی</div><strong>' + esc(d.expired_sessions) + '</strong></div>' +
@@ -1080,6 +1285,7 @@
     if (D.browserMetrics) {
       lastBrowser = D.browserMetrics;
     }
+    updateTabMetrics();
 
     window.addEventListener('speedpulse:browser-metrics', function (ev) {
       if (ev && ev.detail) {
@@ -1088,6 +1294,7 @@
         if (drawer && drawer.classList.contains('is-open')) {
           renderBrowser(lastBrowser);
         }
+        updateTabMetrics();
       }
     });
 
@@ -1116,7 +1323,18 @@
         }).catch(function () {});
       }
       if (t.matches && t.matches('[data-sp-close]')) closeDrawer();
-      if (t.matches && t.matches('.speedpulse-tabs button')) switchTab(t.getAttribute('data-tab'));
+      var tabBtn = t.closest ? t.closest('.speedpulse-tabs button[data-tab]') : null;
+      if (tabBtn) {
+        switchTab(tabBtn.getAttribute('data-tab'));
+        return;
+      }
+
+      var exportImgBtn = t.closest ? t.closest('[data-export-panel]') : null;
+      if (exportImgBtn) {
+        e.preventDefault();
+        exportPanelImage(exportImgBtn.getAttribute('data-export-panel'));
+        return;
+      }
 
       var breakdownEl = t.closest ? t.closest('[data-sp-breakdown]') : null;
       if (breakdownEl) {

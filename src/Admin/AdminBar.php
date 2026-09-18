@@ -41,9 +41,16 @@ final class AdminBar
 			SPEEDPULSE_VERSION
 		);
 		wp_enqueue_script(
+			'speedpulse-html2canvas',
+			SPEEDPULSE_URL . 'assets/js/vendor/html2canvas.min.js',
+			[],
+			'1.4.1',
+			true
+		);
+		wp_enqueue_script(
 			'speedpulse-admin',
 			SPEEDPULSE_URL . 'assets/js/admin-panel.js',
-			[],
+			['speedpulse-html2canvas'],
 			SPEEDPULSE_VERSION,
 			true
 		);
