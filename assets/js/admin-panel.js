@@ -9,6 +9,41 @@
   var drawer;
   var ajaxBusy = 0;
   var modalTimer = null;
+  var lastSnap = null;
+  var lastDom = null;
+
+  var BREAKDOWN_MAP = {
+    queries: {
+      tab: 'queries',
+      scroll: 'sp-queries',
+      title: 'جزئیات کوئری‌های دیتابیس',
+      hint: 'لیست کامل SQLها، کوئری‌های کند و تکراری در تب کوئری‌هاست.'
+    },
+    network: {
+      tab: 'sources',
+      scroll: 'sp-network',
+      title: 'جزئیات درخواست‌های شبکه',
+      hint: 'درخواست‌های HTTP مسدودکننده در بخش سهم منابع نمایش داده می‌شوند.'
+    },
+    hooks: {
+      tab: 'sources',
+      scroll: 'sp-sources',
+      title: 'جزئیات هوک‌های کلیدی',
+      hint: 'سهم افزونه‌ها/قالب و هوک‌ها در تب سهم منابع قابل مشاهده است.'
+    },
+    other: {
+      tab: 'sources',
+      scroll: 'sp-sources',
+      title: 'سایر پردازش PHP',
+      hint: 'باقی‌مانده زمان لود؛ سهم منابع را برای یافتن کندترین افزونه ببینید.'
+    },
+    cron: {
+      tab: 'tools',
+      scroll: 'sp-crawler',
+      title: 'رویدادهای زمان‌بندی‌شده',
+      hint: 'برای کارهای پس‌زمینه، وضعیت کرون و ابزارها را بررسی کنید.'
+    }
+  };
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
@@ -52,8 +87,11 @@
       '<div class="sp-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="sp-modal-title">' +
         '<div class="sp-modal__icon" id="sp-modal-icon"></div>' +
         '<h3 id="sp-modal-title" class="sp-modal__title"></h3>' +
-        '<p id="sp-modal-body" class="sp-modal__body"></p>' +
-        '<button type="button" class="sp-modal__btn" data-sp-modal-close>متوجه شدم</button>' +
+        '<div id="sp-modal-body" class="sp-modal__body"></div>' +
+        '<div class="sp-modal__actions">' +
+          '<button type="button" class="sp-modal__btn sp-modal__btn--ghost" data-sp-modal-close>بستن</button>' +
+          '<button type="button" class="sp-modal__btn" id="sp-modal-action" hidden>رفتن به بخش</button>' +
+        '</div>' +
       '</div>';
     document.body.appendChild(modal);
 
@@ -117,15 +155,38 @@
     var icon = $('#sp-modal-icon');
     var ttl = $('#sp-modal-title');
     var body = $('#sp-modal-body');
+    var actionBtn = $('#sp-modal-action');
 
     modal.className = 'sp-modal is-open sp-modal--' + type;
     if (icon) icon.textContent = icons[type] || 'ℹ';
     if (ttl) ttl.textContent = title;
-    if (body) body.textContent = message || '';
+    if (body) {
+      if (opts.html) {
+        body.innerHTML = message || '';
+      } else {
+        body.textContent = message || '';
+      }
+    }
+    if (actionBtn) {
+      actionBtn.onclick = null;
+      if (opts.action && typeof opts.action.onClick === 'function') {
+        actionBtn.hidden = false;
+        actionBtn.textContent = opts.action.label || 'رفتن به بخش';
+        actionBtn.onclick = function () {
+          hideModal();
+          opts.action.onClick();
+        };
+      } else {
+        actionBtn.hidden = true;
+      }
+    }
     modal.setAttribute('aria-hidden', 'false');
 
     if (modalTimer) clearTimeout(modalTimer);
-    if (opts.autoClose !== false) {
+    if (opts.autoClose === false) {
+      return;
+    }
+    if (opts.autoClose !== false && !opts.action) {
       var ms = typeof opts.autoClose === 'number' ? opts.autoClose : 4200;
       modalTimer = setTimeout(hideModal, ms);
     }
@@ -136,10 +197,155 @@
     if (!modal) return;
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
+    var actionBtn = $('#sp-modal-action');
+    if (actionBtn) {
+      actionBtn.hidden = true;
+      actionBtn.onclick = null;
+    }
     if (modalTimer) {
       clearTimeout(modalTimer);
       modalTimer = null;
     }
+  }
+
+  function switchTab(name, scrollId) {
+    $all('.speedpulse-tabs button').forEach(function (b) {
+      b.classList.toggle('is-active', b.getAttribute('data-tab') === name);
+    });
+    $all('.speedpulse-tab').forEach(function (p) {
+      p.classList.toggle('is-active', p.getAttribute('data-panel') === name);
+    });
+    if (name === 'errors') loadErrors();
+    if (name === 'woo') loadWoo();
+    if (name === 'queries') loadIndexes();
+
+    if (scrollId) {
+      setTimeout(function () {
+        var target = document.getElementById(scrollId);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          target.classList.add('sp-flash');
+          setTimeout(function () { target.classList.remove('sp-flash'); }, 1400);
+        }
+      }, 80);
+    }
+  }
+
+  function openBreakdownDetail(key) {
+    var map = BREAKDOWN_MAP[key];
+    if (!map) return;
+    var snap = lastSnap || {};
+    var bd = snap.time_breakdown || {};
+    var item = null;
+    (bd.items || []).forEach(function (i) {
+      if (i.key === key) item = i;
+    });
+
+    var extra = '';
+    if (key === 'queries') {
+      var qs = (snap.queries || []).slice().sort(function (a, b) { return (b.time_ms || 0) - (a.time_ms || 0); }).slice(0, 5);
+      if (qs.length) {
+        extra = '<div class="sp-detail-list"><div class="sp-detail-label">۵ کوئری کندتر:</div>' +
+          qs.map(function (q) {
+            return '<div class="sp-detail-item"><code dir="ltr">' + esc((q.sql || '').slice(0, 120)) +
+              '</code><span>' + esc(q.time_ms) + ' ms</span></div>';
+          }).join('') + '</div>';
+      }
+    } else if (key === 'network') {
+      var nets = (snap.network || []).slice().sort(function (a, b) { return (b.time_ms || 0) - (a.time_ms || 0); }).slice(0, 5);
+      if (nets.length) {
+        extra = '<div class="sp-detail-list"><div class="sp-detail-label">درخواست‌های شبکه:</div>' +
+          nets.map(function (n) {
+            return '<div class="sp-detail-item"><code dir="ltr">' + esc((n.url || '').slice(0, 100)) +
+              '</code><span>' + esc(n.time_ms) + ' ms</span></div>';
+          }).join('') + '</div>';
+      } else {
+        extra = '<p class="sp-meta">در این درخواست، شبکه مسدودکننده ثبت نشده است.</p>';
+      }
+    } else if (key === 'hooks' || key === 'other') {
+      var attr = snap.attribution || {};
+      var keys = Object.keys(attr).slice(0, 6);
+      if (keys.length) {
+        extra = '<div class="sp-detail-list"><div class="sp-detail-label">کندترین منابع:</div>' +
+          keys.map(function (k) {
+            var a = attr[k] || {};
+            return '<div class="sp-detail-item"><span>' + esc(k) + '</span><span>' +
+              esc(Math.round((a.cpu || 0) * 100) / 100) + ' ms</span></div>';
+          }).join('') + '</div>';
+      }
+    } else if (key === 'cron') {
+      var cron = snap.cron || [];
+      if (cron.length) {
+        extra = '<div class="sp-detail-list"><div class="sp-detail-label">رویدادهای ثبت‌شده:</div>' +
+          cron.slice(0, 6).map(function (c) {
+            return '<div class="sp-detail-item"><span>' + esc(c.type || c.hook || 'رویداد') +
+              '</span><span>' + esc(c.note || '') + '</span></div>';
+          }).join('') + '</div>';
+      }
+    }
+
+    var stats = item
+      ? '<div class="sp-detail-stats">' +
+          '<div><b>' + esc(item.human) + '</b><span>زمان</span></div>' +
+          '<div><b>' + esc(item.percent) + '٪</b><span>از کل</span></div>' +
+          '<div><b>' + esc(item.count || 0) + '</b><span>تعداد</span></div>' +
+        '</div>'
+      : '';
+
+    var html = '<p>' + esc(map.hint) + '</p>' +
+      (item && item.note ? '<p class="sp-meta">' + esc(item.note) + '</p>' : '') +
+      stats + extra +
+      '<p class="sp-click-hint">برای مشاهده کامل، به بخش مربوطه بروید.</p>';
+
+    notify(html, {
+      type: 'info',
+      title: map.title,
+      html: true,
+      autoClose: false,
+      action: {
+        label: 'رفتن به بخش مربوطه',
+        onClick: function () {
+          switchTab(map.tab, map.scroll);
+        }
+      }
+    });
+  }
+
+  function openTimelineDetail(index) {
+    var snap = lastSnap || {};
+    var row = (snap.timeline || [])[index];
+    if (!row) return;
+
+    var prev = index > 0 ? (snap.timeline || [])[index - 1] : null;
+    var delta = prev ? Math.max(0, (row.time || 0) - (prev.time || 0)) : (row.time || 0);
+    var html =
+      '<div class="sp-detail-stats">' +
+        '<div><b>' + esc(row.time) + ' ms</b><span>از شروع درخواست</span></div>' +
+        '<div><b>' + esc(Math.round(delta * 100) / 100) + ' ms</b><span>فاصله از مرحله قبل</span></div>' +
+        '<div><b>' + esc(Math.round((row.memory || 0) / 1048576 * 100) / 100) + ' MB</b><span>رشد حافظه</span></div>' +
+      '</div>' +
+      '<p><strong>منبع:</strong> ' + esc(row.source || '—') + '</p>' +
+      '<p class="sp-meta">این نقطه یکی از مراحل چرخه حیات وردپرس است. برای یافتن گلوگاه، سهم منابع و کوئری‌ها را ببینید.</p>';
+
+    var gotoTab = 'sources';
+    var gotoScroll = 'sp-sources';
+    if (String(row.label || '').indexOf('ووکامرس') !== -1) {
+      gotoTab = 'woo';
+      gotoScroll = 'sp-woo';
+    }
+
+    notify(html, {
+      type: 'info',
+      title: row.label || 'جزئیات مرحله',
+      html: true,
+      autoClose: false,
+      action: {
+        label: gotoTab === 'woo' ? 'رفتن به جراح ووکامرس' : 'رفتن به سهم منابع',
+        onClick: function () {
+          switchTab(gotoTab, gotoScroll);
+        }
+      }
+    });
   }
 
   function setPanelLoading(el, text) {
@@ -216,18 +422,6 @@
     drawer.setAttribute('aria-hidden', 'true');
   }
 
-  function switchTab(name) {
-    $all('.speedpulse-tabs button').forEach(function (b) {
-      b.classList.toggle('is-active', b.getAttribute('data-tab') === name);
-    });
-    $all('.speedpulse-tab').forEach(function (p) {
-      p.classList.toggle('is-active', p.getAttribute('data-panel') === name);
-    });
-    if (name === 'errors') loadErrors();
-    if (name === 'woo') loadWoo();
-    if (name === 'queries') loadIndexes();
-  }
-
   function renderBreakdown(snap) {
     var el = $('#sp-breakdown');
     if (!el) return;
@@ -250,17 +444,18 @@
       return i.key === 'queries' || i.key === 'network' || i.key === 'other';
     }).map(function (i) {
       var w = Math.max(0, Math.min(100, i.percent || 0));
-      return '<span style="width:' + w + '%;background:' + (colors[i.key] || '#3dba9c') + '" title="' + esc(i.label) + '"></span>';
+      return '<button type="button" class="sp-stack-seg" data-sp-breakdown="' + esc(i.key) + '" style="width:' + w + '%;background:' + (colors[i.key] || '#3dba9c') + '" title="' + esc(i.label) + '"></button>';
     }).join('');
 
     var rows = items.map(function (i) {
       var count = i.count ? (' — ' + i.count + ' مورد') : '';
-      return '<div class="sp-row sp-breakdown-row">' +
+      return '<button type="button" class="sp-row sp-breakdown-row sp-clickable" data-sp-breakdown="' + esc(i.key) + '">' +
         '<div><strong>' + esc(i.label) + '</strong>' +
         '<div class="sp-meta">' + esc(i.note || '') + count + '</div>' +
-        '<div class="sp-bar"><span style="width:' + Math.min(100, i.percent || 0) + '%;background:' + (colors[i.key] || '#3dba9c') + '"></span></div></div>' +
+        '<div class="sp-bar"><span style="width:' + Math.min(100, i.percent || 0) + '%;background:' + (colors[i.key] || '#3dba9c') + '"></span></div>' +
+        '<div class="sp-click-hint">برای جزئیات یا رفتن به بخش کلیک کنید</div></div>' +
         '<div class="sp-breakdown-nums"><strong>' + esc(i.human) + '</strong>' +
-        '<span class="sp-badge">' + esc(i.percent) + '٪</span></div></div>';
+        '<span class="sp-badge">' + esc(i.percent) + '٪</span></div></button>';
     }).join('');
 
     el.innerHTML =
@@ -279,12 +474,14 @@
     if (!el) return;
     var max = 1;
     (snap.timeline || []).forEach(function (r) { max = Math.max(max, r.time || 0); });
-    el.innerHTML = (snap.timeline || []).map(function (r) {
+    el.innerHTML = (snap.timeline || []).map(function (r, idx) {
       var pct = Math.min(100, ((r.time || 0) / max) * 100);
-      return '<div class="sp-row"><div><strong>' + esc(r.label) + '</strong>' +
+      return '<button type="button" class="sp-row sp-clickable" data-sp-timeline="' + idx + '">' +
+        '<div><strong>' + esc(r.label) + '</strong>' +
         '<div class="sp-meta">' + esc(r.source) + ' — ' + esc(r.time) + ' ms</div>' +
-        '<div class="sp-bar"><span style="width:' + pct + '%"></span></div></div>' +
-        '<span class="sp-badge">' + esc(Math.round(r.memory / 1048576 * 100) / 100) + ' MB</span></div>';
+        '<div class="sp-bar"><span style="width:' + pct + '%"></span></div>' +
+        '<div class="sp-click-hint">کلیک برای جزئیات این مرحله</div></div>' +
+        '<span class="sp-badge">' + esc(Math.round(r.memory / 1048576 * 100) / 100) + ' MB</span></button>';
     }).join('') || '<p class="sp-meta">هنوز داده‌ای ثبت نشده. مانیتورینگ را روشن و صفحه را تازه‌سازی کنید.</p>';
   }
 
@@ -363,6 +560,8 @@
         return;
       }
       var snap = res.data.snapshot || {};
+      lastSnap = snap;
+      lastDom = res.data.dom || null;
       renderTimeline(snap);
       renderQueries(snap);
       renderSources(snap);
@@ -440,6 +639,10 @@
     drawer = $('#speedpulse-drawer');
     if (!drawer) return;
 
+    if (D.snapshot && typeof D.snapshot === 'object') {
+      lastSnap = D.snapshot;
+    }
+
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (!t) return;
@@ -466,6 +669,20 @@
       }
       if (t.matches && t.matches('[data-sp-close]')) closeDrawer();
       if (t.matches && t.matches('.speedpulse-tabs button')) switchTab(t.getAttribute('data-tab'));
+
+      var breakdownEl = t.closest ? t.closest('[data-sp-breakdown]') : null;
+      if (breakdownEl) {
+        e.preventDefault();
+        openBreakdownDetail(breakdownEl.getAttribute('data-sp-breakdown'));
+        return;
+      }
+      var timelineEl = t.closest ? t.closest('[data-sp-timeline]') : null;
+      if (timelineEl) {
+        e.preventDefault();
+        openTimelineDetail(parseInt(timelineEl.getAttribute('data-sp-timeline'), 10) || 0);
+        return;
+      }
+
       if (t.matches && t.matches('[data-apply-index]')) {
         post('speedpulse_apply_index', { name: t.getAttribute('data-apply-index') }, {
           loading: 'در حال ایجاد ایندکس…',
