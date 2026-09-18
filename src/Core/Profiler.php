@@ -48,7 +48,10 @@ final class Profiler
 
 	public static function instance(): self
 	{
-		return self::$instance ??= new self();
+		if (null === self::$instance) {
+			self::$instance = new self();
+		}
+		return self::$instance;
 	}
 
 	private function __construct()

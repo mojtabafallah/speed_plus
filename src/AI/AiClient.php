@@ -40,12 +40,20 @@ final class AiClient
 		}
 
 		if ($baseUrl === '') {
-			$baseUrl = match ($provider) {
-				'anthropic' => 'https://api.anthropic.com/v1',
-				'deepseek'  => 'https://api.deepseek.com/v1',
-				'gemini'    => 'https://generativelanguage.googleapis.com/v1beta/openai',
-				default     => 'https://api.openai.com/v1',
-			};
+			switch ($provider) {
+				case 'anthropic':
+					$baseUrl = 'https://api.anthropic.com/v1';
+					break;
+				case 'deepseek':
+					$baseUrl = 'https://api.deepseek.com/v1';
+					break;
+				case 'gemini':
+					$baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
+					break;
+				default:
+					$baseUrl = 'https://api.openai.com/v1';
+					break;
+			}
 		}
 
 		$prompt = $this->buildPrompt($context);

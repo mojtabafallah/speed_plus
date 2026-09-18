@@ -22,8 +22,12 @@ use SpeedPulsePro\WooCommerce\WooSurgeon;
 
 final class AjaxHandlers
 {
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void
@@ -163,12 +167,20 @@ final class AjaxHandlers
 		$this->guard();
 		$cmd = sanitize_key((string) ($_POST['cmd'] ?? 'state'));
 		$c   = new SiteCrawler();
-		$result = match ($cmd) {
-			'start'  => $c->start(),
-			'pause'  => $c->pause(),
-			'resume' => $c->resume(),
-			default  => ['ok' => true, 'message' => 'وضعیت خزش', 'state' => $c->state()],
-		};
+		switch ($cmd) {
+			case 'start':
+				$result = $c->start();
+				break;
+			case 'pause':
+				$result = $c->pause();
+				break;
+			case 'resume':
+				$result = $c->resume();
+				break;
+			default:
+				$result = ['ok' => true, 'message' => 'وضعیت خزش', 'state' => $c->state()];
+				break;
+		}
 		wp_send_json_success($result);
 	}
 

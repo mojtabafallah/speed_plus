@@ -13,8 +13,12 @@ use SpeedPulsePro\Core\Profiler;
 
 final class WooSurgeon
 {
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void
@@ -93,7 +97,7 @@ final class WooSurgeon
 	 * @param mixed                $response
 	 * @param array<string, mixed> $args
 	 */
-	public function timePaymentHttp(mixed $response, string $context, string $class, array $args, string $url): void
+	public function timePaymentHttp($response, string $context, string $class, array $args, string $url): void
 	{
 		if ($context !== 'response') {
 			return;

@@ -39,6 +39,11 @@ final class SettingsPage
 		<div class="wrap speedpulse-settings-wrap" dir="rtl">
 			<h1>اسپید‌پالس پرو اولترا</h1>
 			<p>تنظیمات هسته مانیتورینگ، هوش مصنوعی و آستانه‌های هشدار. برای پنل زنده از نوار بالای وردپرس استفاده کنید.</p>
+			<p class="description">
+				نویسنده: <a href="<?php echo esc_url(SPEEDPULSE_AUTHOR_URI); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(SPEEDPULSE_AUTHOR); ?></a>
+				—
+				<a href="<?php echo esc_url(SPEEDPULSE_GITHUB); ?>" target="_blank" rel="noopener noreferrer">مخزن GitHub</a>
+			</p>
 
 			<form id="speedpulse-settings-form" class="speedpulse-card">
 				<table class="form-table" role="presentation">

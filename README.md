@@ -2,6 +2,14 @@
 
 سامانه مانیتورینگ بلادرنگ وردپرس، عیب‌یاب PHP، جراح ووکامرس و تولید پچ بهینه‌سازی با هوش مصنوعی — رابط و متون کاملاً فارسی و راست‌چین.
 
+## نویسنده و مخزن
+
+| مورد | مقدار |
+|------|--------|
+| نویسنده | [Mojtaba Fallah](https://github.com/mojtabafallah) |
+| مخزن GitHub | [mojtabafallah/speed_plus](https://github.com/mojtabafallah/speed_plus) |
+| کلون | `https://github.com/mojtabafallah/speed_plus.git` |
+
 ## نصب
 
 1. افزونه را از مسیر `wp-content/plugins/speedpulse-pro-ultra` فعال کنید.
@@ -41,6 +49,6 @@ speedpulse-pro-ultra/
 
 ## نیازمندی‌ها
 
-- PHP 8.3+
-- وردپرس 6.4+
+- PHP 7.4+
+- وردپرس 5.8+
 - برای لاگ خطا: `WP_DEBUG_LOG`

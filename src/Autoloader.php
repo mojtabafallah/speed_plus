@@ -22,7 +22,7 @@ final class Autoloader
 	public static function load(string $class): void
 	{
 		$prefix = 'SpeedPulsePro\\';
-		if (! str_starts_with($class, $prefix)) {
+		if (0 !== strpos($class, $prefix)) {
 			return;
 		}
 

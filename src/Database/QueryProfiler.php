@@ -14,8 +14,12 @@ use SpeedPulsePro\Core\SourceAttributor;
 
 final class QueryProfiler
 {
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void

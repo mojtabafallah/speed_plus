@@ -18,8 +18,12 @@ final class MemoryLeakDetector
 
 	private int $lastMem = 0;
 
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void
@@ -88,11 +92,15 @@ final class MemoryLeakDetector
 		}
 		$unit = strtolower(substr($limit, -1));
 		$num  = (float) $limit;
-		return match ($unit) {
-			'g' => (int) ($num * 1073741824),
-			'm' => (int) ($num * 1048576),
-			'k' => (int) ($num * 1024),
-			default => (int) $num,
-		};
+		switch ($unit) {
+			case 'g':
+				return (int) ($num * 1073741824);
+			case 'm':
+				return (int) ($num * 1048576);
+			case 'k':
+				return (int) ($num * 1024);
+			default:
+				return (int) $num;
+		}
 	}
 }

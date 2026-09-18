@@ -49,7 +49,10 @@ final class SourceAttributor
 		return 'نامشخص';
 	}
 
-	public static function fromCallable(mixed $callable): string
+	/**
+	 * @param mixed $callable
+	 */
+	public static function fromCallable($callable): string
 	{
 		try {
 			if (is_string($callable) && function_exists($callable)) {
@@ -75,19 +78,22 @@ final class SourceAttributor
 				$file = $ref->getFileName();
 				return $file ? self::fromFile($file) : 'بسته ناشناس';
 			}
-		} catch (\Throwable) {
+		} catch (\Throwable $e) {
 			return 'نامشخص';
 		}
 		return 'نامشخص';
 	}
 
-	public static function describeCallable(mixed $callable): string
+	/**
+	 * @param mixed $callable
+	 */
+	public static function describeCallable($callable): string
 	{
 		if (is_string($callable)) {
 			return $callable . '()';
 		}
 		if (is_array($callable) && isset($callable[0], $callable[1])) {
-			$class = is_object($callable[0]) ? $callable[0]::class : (string) $callable[0];
+			$class = is_object($callable[0]) ? get_class($callable[0]) : (string) $callable[0];
 			return $class . '::' . (string) $callable[1];
 		}
 		if ($callable instanceof \Closure) {

@@ -54,15 +54,27 @@ final class ErrorClassifier
 	public function offlineFixHint(array $error): string
 	{
 		$msg = $error['message'];
-		return match (true) {
-			str_contains($msg, 'Allowed memory size') => 'حد حافظه PHP پر شده است. مصرف حافظه افزونه‌ها را بررسی کنید، کوئری‌های حجیم را صفحه‌بندی کنید و در صورت نیاز memory_limit را افزایش دهید.',
-			str_contains($msg, 'Maximum execution time') => 'زمان اجرای اسکریپت تمام شده. پردازش‌های سنگین را به WP-Cron یا صف ناهمگام منتقل کنید.',
-			str_contains($msg, 'Undefined array key') || str_contains($msg, 'Undefined index') => 'قبل از دسترسی، وجود کلید آرایه را با isset()/array_key_exists() بررسی کنید.',
-			str_contains($msg, 'Trying to access array offset on') => 'مقدار ممکن است null باشد؛ قبل از اندیس‌گذاری، نوع داده را اعتبارسنجی کنید.',
-			str_contains($msg, 'Call to undefined function') => 'تابع فراخوانی‌شده لود نشده؛ وابستگی افزونه یا ترتیب هوک را بررسی کنید.',
-			str_contains($msg, 'Call to a member function') && str_contains($msg, 'on null') => 'آبجکت null است؛ قبل از فراخوانی متد، وجود نمونه را بررسی کنید.',
-			$error['type'] === 'Deprecated' => 'API قدیمی است؛ طبق مستندات نسخه فعلی وردپرس/PHP جایگزین کنید تا در نسخه‌های بعدی از کار نیفتد.',
-			default => 'استک‌تریس و فایل منبع را بررسی کنید؛ ورودی‌ها را اعتبارسنجی و شرط‌های مرزی را پوشش دهید.',
-		};
+		if (str_contains($msg, 'Allowed memory size')) {
+			return 'حد حافظه PHP پر شده است. مصرف حافظه افزونه‌ها را بررسی کنید، کوئری‌های حجیم را صفحه‌بندی کنید و در صورت نیاز memory_limit را افزایش دهید.';
+		}
+		if (str_contains($msg, 'Maximum execution time')) {
+			return 'زمان اجرای اسکریپت تمام شده. پردازش‌های سنگین را به WP-Cron یا صف ناهمگام منتقل کنید.';
+		}
+		if (str_contains($msg, 'Undefined array key') || str_contains($msg, 'Undefined index')) {
+			return 'قبل از دسترسی، وجود کلید آرایه را با isset()/array_key_exists() بررسی کنید.';
+		}
+		if (str_contains($msg, 'Trying to access array offset on')) {
+			return 'مقدار ممکن است null باشد؛ قبل از اندیس‌گذاری، نوع داده را اعتبارسنجی کنید.';
+		}
+		if (str_contains($msg, 'Call to undefined function')) {
+			return 'تابع فراخوانی‌شده لود نشده؛ وابستگی افزونه یا ترتیب هوک را بررسی کنید.';
+		}
+		if (str_contains($msg, 'Call to a member function') && str_contains($msg, 'on null')) {
+			return 'آبجکت null است؛ قبل از فراخوانی متد، وجود نمونه را بررسی کنید.';
+		}
+		if ($error['type'] === 'Deprecated') {
+			return 'API قدیمی است؛ طبق مستندات نسخه فعلی وردپرس/PHP جایگزین کنید تا در نسخه‌های بعدی از کار نیفتد.';
+		}
+		return 'استک‌تریس و فایل منبع را بررسی کنید؛ ورودی‌ها را اعتبارسنجی و شرط‌های مرزی را پوشش دهید.';
 	}
 }

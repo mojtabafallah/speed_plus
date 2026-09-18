@@ -11,8 +11,12 @@ namespace SpeedPulsePro\Core;
 
 final class NetworkTracker
 {
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void
@@ -35,7 +39,7 @@ final class NetworkTracker
 	 * @param mixed                $response
 	 * @param array<string, mixed> $args
 	 */
-	public function afterRequest(mixed $response, string $context, string $class, array $args, string $url): void
+	public function afterRequest($response, string $context, string $class, array $args, string $url): void
 	{
 		if ($context !== 'response') {
 			return;

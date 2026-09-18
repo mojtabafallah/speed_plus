@@ -13,8 +13,12 @@ use SpeedPulsePro\Core\Profiler;
 
 final class CronAuditor
 {
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void
@@ -24,7 +28,10 @@ final class CronAuditor
 		add_action('shutdown', [$this, 'reportDueCrons'], 5);
 	}
 
-	public function onActionStart(int $actionId, mixed $context = null): void
+	/**
+	 * @param mixed $context
+	 */
+	public function onActionStart(int $actionId, $context = null): void
 	{
 		$this->profiler->addCron([
 			'type'      => 'action_scheduler',
@@ -39,7 +46,7 @@ final class CronAuditor
 	 * @param object|false $event
 	 * @return object|false
 	 */
-	public function noteSchedule(mixed $event): mixed
+	public function noteSchedule($event)
 	{
 		if (is_object($event) && isset($event->hook)) {
 			$this->profiler->addCron([

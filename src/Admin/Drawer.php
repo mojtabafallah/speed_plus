@@ -13,8 +13,12 @@ use SpeedPulsePro\Core\Profiler;
 
 final class Drawer
 {
-	public function __construct(private Profiler $profiler)
+	/** @var Profiler */
+	private $profiler;
+
+	public function __construct(Profiler $profiler)
 	{
+		$this->profiler = $profiler;
 	}
 
 	public function boot(): void
