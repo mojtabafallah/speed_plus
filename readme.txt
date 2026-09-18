@@ -1,39 +1,35 @@
-=== اسپید‌پالس پرو اولترا ===
+=== SpeedPulse Pro Ultra ===
 Contributors: mojtabafallah
 Tags: performance, profiling, woocommerce, debug, persian
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.14
+Stable tag: 1.0.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-سامانه مانیتورینگ بلادرنگ و عیب‌یاب عملکرد وردپرس — کاملاً فارسی.
+Real-time WordPress performance monitor. Persian RTL UI.
 
 == Description ==
 
-اسپید‌پالس پرو اولترا زمان سرور، Network مرورگر، کوئری‌ها، رم/CPU و راهکارهای بهینه‌سازی را نشان می‌دهد.
+SpeedPulse Pro Ultra shows server timing, browser Network, SQL queries, RAM/CPU, and optimization tips.
 
-سازگار با PHP 7.4 و بالاتر (از جمله 8.0 / 8.1 / 8.2 / 8.3).
+Requires PHP 7.4 or higher (works on 8.0, 8.1, and 8.2).
 
 == Installation ==
 
-1. از پیشخوان: افزونه‌ها ← افزودن ← بارگذاری افزونه (نه پوسته‌ها).
-2. فایل ZIP پوشه افزونه را آپلود کنید.
-3. فعال کنید و از نوار ادمین اسپید‌پالس را باز کنید.
-
-== Frequently Asked Questions ==
-
-= حداقل نسخه PHP؟ =
-PHP 7.4 یا بالاتر. روی 8.1 هم نصب می‌شود.
-
-= بعد از حذف مشکل می‌سازد؟ =
-حذف از پیشخوان داده‌ها و فایل MU را پاک می‌کند.
+1. WordPress Admin -> Plugins -> Add New -> Upload Plugin (NOT Themes).
+2. Upload the zip that contains the folder "speedpulse-pro-ultra".
+3. Activate and open SpeedPulse from the admin bar.
 
 == Changelog ==
 
+= 1.0.15 =
+* English plugin headers for reliable install on PHP 8.1 hosts
+* Requires PHP clearly set to 7.4
+
 = 1.0.14 =
-* شفاف‌سازی نیاز PHP 7.4+ برای نصب روی اکثر هاست‌ها
+* PHP 7.4+ compatibility docs
 
 = 1.0.13 =
-* فعال شدن پنل روی فرانت برای مدیران
+* Frontend admin bar support

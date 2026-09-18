@@ -1,20 +1,20 @@
 <?php
 /**
- * Plugin Name: اسپید‌پالس پرو اولترا
- * Plugin URI:  https://github.com/mojtabafallah/speed_plus
- * Description: سامانه مانیتورینگ بلادرنگ، عیب‌یاب PHP، جراح ووکامرس و تولید پچ بهینه‌سازی مبتنی بر هوش مصنوعی — کاملاً فارسی و راست‌چین.
- * Version:     1.0.14
- * Author:      Mojtaba Fallah
- * Author URI:  https://github.com/mojtabafallah
+ * Plugin Name: SpeedPulse Pro Ultra
+ * Plugin URI: https://github.com/mojtabafallah/speed_plus
+ * Description: Real-time WordPress performance monitor (Persian RTL). Server timing, browser Network, queries, RAM/CPU, and tips.
+ * Version: 1.0.15
  * Requires at least: 5.8
  * Requires PHP: 7.4
+ * Author: Mojtaba Fallah
+ * Author URI: https://github.com/mojtabafallah
  * Text Domain: speedpulse-pro
  * Domain Path: /languages
  * GitHub Plugin URI: mojtabafallah/speed_plus
  *
+ * نام فارسی: اسپید‌پالس پرو اولترا
+ *
  * @package SpeedPulsePro
- * @author  Mojtaba Fallah <https://github.com/mojtabafallah>
- * @link    https://github.com/mojtabafallah/speed_plus
  */
 
 declare(strict_types=1);
@@ -23,17 +23,19 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-// حداقل PHP 7.4 — سازگار با 8.0 / 8.1 / 8.2 / 8.3
 if (version_compare(PHP_VERSION, '7.4', '<')) {
-	add_action('admin_notices', static function (): void {
-		echo '<div class="notice notice-error"><p>';
-		echo esc_html('اسپید‌پالس پرو به PHP 7.4 یا بالاتر نیاز دارد. نسخه فعلی سرور: ' . PHP_VERSION);
-		echo '</p></div>';
-	});
+	add_action(
+		'admin_notices',
+		static function (): void {
+			echo '<div class="notice notice-error"><p>';
+			echo esc_html('SpeedPulse Pro requires PHP 7.4+. Current: ' . PHP_VERSION);
+			echo '</p></div>';
+		}
+	);
 	return;
 }
 
-define('SPEEDPULSE_VERSION', '1.0.14');
+define('SPEEDPULSE_VERSION', '1.0.15');
 define('SPEEDPULSE_FILE', __FILE__);
 define('SPEEDPULSE_PATH', plugin_dir_path(__FILE__));
 define('SPEEDPULSE_URL', plugin_dir_url(__FILE__));
@@ -55,6 +57,10 @@ register_deactivation_hook(__FILE__, static function (): void {
 	\SpeedPulsePro\Core\Activator::deactivate();
 });
 
-add_action('plugins_loaded', static function (): void {
-	\SpeedPulsePro\Plugin::instance()->boot();
-}, 1);
+add_action(
+	'plugins_loaded',
+	static function (): void {
+		\SpeedPulsePro\Plugin::instance()->boot();
+	},
+	1
+);
