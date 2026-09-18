@@ -28,6 +28,7 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 
 		<nav class="speedpulse-tabs" role="tablist">
 			<button type="button" class="is-active" data-tab="timeline">خط زمان</button>
+			<button type="button" data-tab="tips">راهکارها</button>
 			<button type="button" data-tab="queries">کوئری‌ها</button>
 			<button type="button" data-tab="sources">سهم منابع</button>
 			<button type="button" data-tab="errors">لاگ خطاها</button>
@@ -45,6 +46,15 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 				<div id="sp-breakdown" class="sp-breakdown"></div>
 				<h3>آبشار زمان اجرای PHP</h3>
 				<div id="sp-timeline" class="sp-waterfall"></div>
+			</section>
+
+			<section class="speedpulse-tab" data-panel="tips">
+				<h3>راهکارهای پیشنهادی برای کندی‌ها</h3>
+				<p class="sp-meta">بر اساس داده سرور + Network مرورگر، برای هر مشکل یک سناریوی عملی پیشنهاد می‌شود.</p>
+				<div class="sp-actions">
+					<button type="button" class="button button-primary" id="sp-refresh-tips">به‌روزرسانی راهکارها</button>
+				</div>
+				<div id="sp-tips"></div>
 			</section>
 
 			<section class="speedpulse-tab" data-panel="queries">

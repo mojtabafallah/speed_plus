@@ -12,6 +12,7 @@
   var lastSnap = null;
   var lastDom = null;
   var lastBrowser = D.browserMetrics || null;
+  var lastTips = [];
 
   var BREAKDOWN_MAP = {
     queries: {
@@ -238,6 +239,7 @@
     if (name === 'errors') loadErrors();
     if (name === 'woo') loadWoo();
     if (name === 'queries') loadIndexes();
+    if (name === 'tips') renderTips(lastTips);
 
     if (scrollId) {
       setTimeout(function () {
@@ -442,6 +444,38 @@
     drawer.setAttribute('aria-hidden', 'true');
   }
 
+  function renderTips(tips) {
+    var el = $('#sp-tips');
+    if (!el) return;
+    tips = tips || lastTips || [];
+    if (!tips.length) {
+      el.innerHTML = '<p class="sp-meta">هنوز پیشنهادی نیست. ضبط را روشن کنید، صفحه کند را کامل لود کنید، سپس اینجا را به‌روز کنید.</p>';
+      return;
+    }
+
+    el.innerHTML = tips.map(function (t) {
+      var sev = t.severity || 'info';
+      var badge = sev === 'critical' ? 'danger' : (sev === 'warn' ? 'warn' : (sev === 'ok' ? 'ok' : ''));
+      var steps = (t.steps || []).map(function (s) {
+        return '<li>' + esc(s) + '</li>';
+      }).join('');
+      return '<article class="sp-tip sp-tip--' + esc(sev) + '">' +
+        '<div class="sp-tip__head">' +
+          '<strong>' + esc(t.title) + '</strong>' +
+          '<span class="sp-badge ' + badge + '">' + esc({
+            critical: 'بحرانی',
+            warn: 'هشدار',
+            ok: 'عالی',
+            info: 'راهنما'
+          }[sev] || 'راهنما') + '</span>' +
+        '</div>' +
+        '<p class="sp-meta">' + esc(t.why) + '</p>' +
+        '<ol class="sp-tip__steps">' + steps + '</ol>' +
+        (t.related ? '<button type="button" class="button sp-tip-goto" data-tip-goto="' + esc(t.related) + '">رفتن به بخش مرتبط</button>' : '') +
+      '</article>';
+    }).join('');
+  }
+
   function renderBrowser(browser) {
     var el = $('#sp-browser');
     if (!el) return;
@@ -483,7 +517,10 @@
         '<div class="sp-meta">تعداد منابع ثبت‌شده: ' + esc(browser.resource_count || 0) + '</div>' +
       '</div>' +
       '<h4>دسته‌بندی منابع مرورگر</h4><div class="sp-list">' + (types || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
-      '<h4>کندترین درخواست‌های Network</h4><div class="sp-list">' + (slow || '<p class="sp-meta">موردی نیست</p>') + '</div>';
+      '<h4>کندترین درخواست‌های Network</h4><div class="sp-list">' + (slow || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
+      (lastTips && lastTips.length
+        ? '<div class="sp-browser-tips-link"><button type="button" class="button button-primary" data-tab-jump="tips">مشاهده راهکارهای پیشنهادی (' + lastTips.length + ')</button></div>'
+        : '');
   }
 
   function renderBreakdown(snap) {
@@ -631,7 +668,11 @@
         lastBrowser = res.data.browser;
         D.browserMetrics = lastBrowser;
       }
+      if (res.data.recommendations) {
+        lastTips = res.data.recommendations;
+      }
       renderTimeline(snap);
+      renderTips(lastTips);
       renderQueries(snap);
       renderSources(snap);
       renderDom(res.data.dom);
@@ -764,6 +805,18 @@
         openTimelineDetail(parseInt(timelineEl.getAttribute('data-sp-timeline'), 10) || 0);
         return;
       }
+      var tipGoto = t.closest ? t.closest('[data-tip-goto]') : null;
+      if (tipGoto) {
+        e.preventDefault();
+        switchTab(tipGoto.getAttribute('data-tip-goto'));
+        return;
+      }
+      var tabJump = t.closest ? t.closest('[data-tab-jump]') : null;
+      if (tabJump) {
+        e.preventDefault();
+        switchTab(tabJump.getAttribute('data-tab-jump'));
+        return;
+      }
 
       if (t.matches && t.matches('[data-apply-index]')) {
         post('speedpulse_apply_index', { name: t.getAttribute('data-apply-index') }, {
@@ -816,6 +869,15 @@
 
     var refreshLog = $('#sp-refresh-log');
     if (refreshLog) refreshLog.addEventListener('click', loadErrors);
+    var refreshTips = $('#sp-refresh-tips');
+    if (refreshTips) refreshTips.addEventListener('click', function () {
+      refreshSnapshot();
+      switchTab('tips');
+      notify('راهکارها بر اساس آخرین داده سرور و مرورگر به‌روز شد.', {
+        type: 'success',
+        title: 'راهکارها'
+      });
+    });
     var clearLog = $('#sp-clear-log');
     if (clearLog) clearLog.addEventListener('click', function () {
       post('speedpulse_clear_log', {}, {

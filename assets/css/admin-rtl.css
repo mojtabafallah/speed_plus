@@ -309,6 +309,45 @@ button.sp-row {
   padding: 16px;
 }
 
+.sp-browser-tips-link {
+  margin-top: 14px;
+}
+
+.sp-tip {
+  background: var(--sp-card);
+  border: 1px solid var(--sp-line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.sp-tip--critical {
+  border-color: rgba(224, 108, 117, .45);
+}
+
+.sp-tip--warn {
+  border-color: rgba(224, 164, 92, .45);
+}
+
+.sp-tip--ok {
+  border-color: rgba(61, 186, 156, .45);
+}
+
+.sp-tip__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.sp-tip__steps {
+  margin: 8px 0 12px 0;
+  padding-right: 18px;
+  color: #d5e0ec;
+  line-height: 1.8;
+}
+
 .sp-breakdown-total {
   background: linear-gradient(135deg, #15202b 0%, #1c2a38 100%);
   border: 1px solid var(--sp-line);

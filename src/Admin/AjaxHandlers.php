@@ -92,11 +92,16 @@ final class AjaxHandlers
 		}
 		$dom     = get_transient('speedpulse_dom_last');
 		$browser = get_transient('speedpulse_browser_metrics');
+		$tips    = (new \SpeedPulsePro\Core\RecommendationEngine())->build(
+			is_array($snap) ? $snap : [],
+			is_array($browser) ? $browser : null
+		);
 		wp_send_json_success([
-			'snapshot' => $snap,
-			'dom'      => is_array($dom) ? $dom : null,
-			'browser'  => is_array($browser) ? $browser : null,
-			'memory'   => get_transient('speedpulse_memory_report'),
+			'snapshot'         => $snap,
+			'dom'              => is_array($dom) ? $dom : null,
+			'browser'          => is_array($browser) ? $browser : null,
+			'recommendations'  => $tips,
+			'memory'           => get_transient('speedpulse_memory_report'),
 		]);
 	}
 
