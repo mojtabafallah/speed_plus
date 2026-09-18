@@ -400,14 +400,13 @@ final class Profiler
 	 */
 	public static function formatDuration(float $ms): string
 	{
+		if ($ms >= 60000) {
+			$min = (int) floor($ms / 60000);
+			$rem = ($ms % 60000) / 1000;
+			return $min . ' دقیقه و ' . number_format($rem, 2) . ' ثانیه';
+		}
 		if ($ms >= 1000) {
-			$sec = $ms / 1000;
-			if ($sec >= 60) {
-				$min = (int) floor($sec / 60);
-				$rem = $sec - ($min * 60);
-				return $min . ' دقیقه و ' . number_format($rem, 2) . ' ثانیه';
-			}
-			return number_format($sec, 3) . ' ثانیه';
+			return number_format($ms / 1000, 3) . ' ثانیه';
 		}
 		return number_format($ms, 2) . ' میلی‌ثانیه';
 	}

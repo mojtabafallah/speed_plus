@@ -101,7 +101,7 @@ final class AdminBar
 		$status  = $enabled ? '● ضبط زنده' : '○ خاموش';
 
 		$breakdown = is_array($snap['time_breakdown'] ?? null) ? $snap['time_breakdown'] : [];
-		$totalHuman = (string) ($breakdown['total_human'] ?? ($snap['total_human'] ?? ((string) ($snap['ttfb_ms'] ?? 0) . ' ms')));
+		$totalHuman = (string) ($breakdown['total_human'] ?? ($snap['total_human'] ?? \SpeedPulsePro\Core\Profiler::formatDuration((float) ($snap['ttfb_ms'] ?? 0))));
 		$queryItem  = null;
 		foreach (($breakdown['items'] ?? []) as $item) {
 			if (($item['key'] ?? '') === 'queries') {

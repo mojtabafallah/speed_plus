@@ -61,6 +61,25 @@
       .replace(/"/g, '&quot;');
   }
 
+  /**
+   * واحد هوشمند: زیر ۱ ثانیه → میلی‌ثانیه، از ۱ ثانیه به بالا → ثانیه
+   * @param {number|string} ms
+   * @returns {string}
+   */
+  function fmtTime(ms) {
+    var n = parseFloat(ms);
+    if (!isFinite(n) || n < 0) n = 0;
+    if (n >= 60000) {
+      var min = Math.floor(n / 60000);
+      var remSec = (n % 60000) / 1000;
+      return min + ' دقیقه و ' + remSec.toFixed(2) + ' ثانیه';
+    }
+    if (n >= 1000) {
+      return (n / 1000).toFixed(3) + ' ثانیه';
+    }
+    return n.toFixed(2) + ' میلی‌ثانیه';
+  }
+
   function ensureUi() {
     if ($('#speedpulse-ajax-loader')) return;
 
@@ -248,7 +267,7 @@
         extra = '<div class="sp-detail-list"><div class="sp-detail-label">۵ کوئری کندتر:</div>' +
           qs.map(function (q) {
             return '<div class="sp-detail-item"><code dir="ltr">' + esc((q.sql || '').slice(0, 120)) +
-              '</code><span>' + esc(q.time_ms) + ' ms</span></div>';
+              '</code><span>' + esc(fmtTime(q.time_ms)) + '</span></div>';
           }).join('') + '</div>';
       }
     } else if (key === 'network') {
@@ -257,7 +276,7 @@
         extra = '<div class="sp-detail-list"><div class="sp-detail-label">درخواست‌های شبکه:</div>' +
           nets.map(function (n) {
             return '<div class="sp-detail-item"><code dir="ltr">' + esc((n.url || '').slice(0, 100)) +
-              '</code><span>' + esc(n.time_ms) + ' ms</span></div>';
+              '</code><span>' + esc(fmtTime(n.time_ms)) + '</span></div>';
           }).join('') + '</div>';
       } else {
         extra = '<p class="sp-meta">در این درخواست، شبکه مسدودکننده ثبت نشده است.</p>';
@@ -270,7 +289,7 @@
           keys.map(function (k) {
             var a = attr[k] || {};
             return '<div class="sp-detail-item"><span>' + esc(k) + '</span><span>' +
-              esc(Math.round((a.cpu || 0) * 100) / 100) + ' ms</span></div>';
+              esc(fmtTime(a.cpu || 0)) + '</span></div>';
           }).join('') + '</div>';
       }
     } else if (key === 'cron') {
@@ -320,8 +339,8 @@
     var delta = prev ? Math.max(0, (row.time || 0) - (prev.time || 0)) : (row.time || 0);
     var html =
       '<div class="sp-detail-stats">' +
-        '<div><b>' + esc(row.time) + ' ms</b><span>از شروع درخواست</span></div>' +
-        '<div><b>' + esc(Math.round(delta * 100) / 100) + ' ms</b><span>فاصله از مرحله قبل</span></div>' +
+        '<div><b>' + esc(fmtTime(row.time)) + '</b><span>از شروع درخواست</span></div>' +
+        '<div><b>' + esc(fmtTime(delta)) + '</b><span>فاصله از مرحله قبل</span></div>' +
         '<div><b>' + esc(Math.round((row.memory || 0) / 1048576 * 100) / 100) + ' MB</b><span>رشد حافظه</span></div>' +
       '</div>' +
       '<p><strong>منبع:</strong> ' + esc(row.source || '—') + '</p>' +
@@ -478,7 +497,7 @@
       var pct = Math.min(100, ((r.time || 0) / max) * 100);
       return '<button type="button" class="sp-row sp-clickable" data-sp-timeline="' + idx + '">' +
         '<div><strong>' + esc(r.label) + '</strong>' +
-        '<div class="sp-meta">' + esc(r.source) + ' — ' + esc(r.time) + ' ms</div>' +
+        '<div class="sp-meta">' + esc(r.source) + ' — ' + esc(fmtTime(r.time)) + '</div>' +
         '<div class="sp-bar"><span style="width:' + pct + '%"></span></div>' +
         '<div class="sp-click-hint">کلیک برای جزئیات این مرحله</div></div>' +
         '<span class="sp-badge">' + esc(Math.round(r.memory / 1048576 * 100) / 100) + ' MB</span></button>';
@@ -496,7 +515,7 @@
       if (q.explain && q.explain.full_scan) badges += '<span class="sp-badge danger">اسکن کامل</span> ';
       return '<div class="sp-row"><div><div class="sp-sql">' + esc(q.sql) + '</div>' +
         '<div class="sp-meta">' + esc(q.source) + ' | ' + esc(q.file) + ':' + esc(q.line) + '</div>' +
-        badges + '</div><strong>' + esc(q.time_ms) + ' ms</strong></div>';
+        badges + '</div><strong>' + esc(fmtTime(q.time_ms)) + '</strong></div>';
     }).join('') + '</div>';
 
     var dups = snap.duplicates || [];
@@ -516,7 +535,7 @@
       var a = attr[k];
       return '<div class="sp-row"><div><strong>' + esc(k) + '</strong>' +
         '<div class="sp-meta">هوک: ' + esc(a.hooks) + ' | کوئری: ' + esc(a.queries) + '</div></div>' +
-        '<strong>' + esc(Math.round((a.cpu || 0) * 100) / 100) + ' ms</strong></div>';
+        '<strong>' + esc(fmtTime(a.cpu || 0)) + '</strong></div>';
     }).join('') + '</div>';
 
     var net = $('#sp-network');
@@ -524,7 +543,7 @@
       net.innerHTML = '<div class="sp-list">' + (snap.network || []).map(function (n) {
         return '<div class="sp-row"><div><div class="sp-sql">' + esc(n.url) + '</div>' +
           '<div class="sp-meta">' + (n.blocking ? 'مسدودکننده' : 'ناهمگام') + ' | کد ' + esc(n.code) + '</div></div>' +
-          '<strong>' + esc(n.time_ms) + ' ms</strong></div>';
+          '<strong>' + esc(fmtTime(n.time_ms)) + '</strong></div>';
       }).join('') + '</div>';
     }
   }
@@ -725,7 +744,7 @@
           if (box) {
             box.innerHTML = '<div class="sp-meta">وضعیت: ' + esc(st.status) + ' — ' + esc(st.offset) + '/' + esc(st.total) + '</div>' +
               '<div class="sp-list">' + (st.results || []).slice(0, 15).map(function (r) {
-                return '<div class="sp-row"><div class="sp-sql">' + esc(r.url) + '</div><strong>' + esc(r.ttfb_ms) + ' ms</strong></div>';
+                return '<div class="sp-row"><div class="sp-sql">' + esc(r.url) + '</div><strong>' + esc(fmtTime(r.ttfb_ms)) + '</strong></div>';
               }).join('') + '</div>';
           }
         }).catch(function () {});
@@ -762,8 +781,8 @@
         if (!out) return;
         var d = res.data || {};
         out.innerHTML =
-          '<div class="sp-row"><div>میانگین TTFB</div><strong>' + esc(d.avg_ttfb_ms) + ' ms</strong></div>' +
-          '<div class="sp-row"><div>P95</div><strong>' + esc(d.p95_ttfb_ms) + ' ms</strong></div>' +
+          '<div class="sp-row"><div>میانگین TTFB</div><strong>' + esc(fmtTime(d.avg_ttfb_ms)) + '</strong></div>' +
+          '<div class="sp-row"><div>P95</div><strong>' + esc(fmtTime(d.p95_ttfb_ms)) + '</strong></div>' +
           '<div class="sp-row"><div>افت TTFB</div><strong>' + esc(d.ttfb_drop_pct) + '٪</strong></div>' +
           '<div class="sp-row"><div>پایداری</div><strong>' + (d.stable ? 'پایدار' : 'ناسپایدار') + '</strong></div>';
         notify(d.message || 'تست فشار به پایان رسید.', {
