@@ -123,6 +123,12 @@ final class AjaxHandlers
 			'collected_at'       => (int) ($data['collected_at'] ?? time()),
 			'browser_wall_ms'    => (float) ($data['browser_wall_ms'] ?? 0),
 			'browser_wall_human' => sanitize_text_field((string) ($data['browser_wall_human'] ?? '')),
+			'load_wall_ms'       => (float) ($data['load_wall_ms'] ?? 0),
+			'load_wall_human'    => sanitize_text_field((string) ($data['load_wall_human'] ?? '')),
+			'open_after_load_ms' => (float) ($data['open_after_load_ms'] ?? 0),
+			'open_after_load_human' => sanitize_text_field((string) ($data['open_after_load_human'] ?? '')),
+			'wall_inflated'      => ! empty($data['wall_inflated']),
+			'wall_ratio'         => (float) ($data['wall_ratio'] ?? 0),
 			'resource_count'     => (int) ($data['resource_count'] ?? 0),
 			'heartbeat_count'    => (int) ($data['heartbeat_count'] ?? 0),
 			'ajax_count'         => (int) ($data['ajax_count'] ?? 0),
@@ -132,10 +138,17 @@ final class AjaxHandlers
 			'resources'          => is_array($data['resources'] ?? null) ? array_slice($data['resources'], 0, 150) : [],
 			'slowest'            => is_array($data['slowest'] ?? null) ? array_slice($data['slowest'], 0, 30) : [],
 			'note_fa'            => sanitize_text_field((string) ($data['note_fa'] ?? '')),
+			'clarity_fa'         => sanitize_textarea_field((string) ($data['clarity_fa'] ?? '')),
 		];
 
 		if ($clean['browser_wall_human'] === '' && $clean['browser_wall_ms'] > 0) {
 			$clean['browser_wall_human'] = \SpeedPulsePro\Core\Profiler::formatDuration($clean['browser_wall_ms']);
+		}
+		if ($clean['load_wall_human'] === '' && $clean['load_wall_ms'] > 0) {
+			$clean['load_wall_human'] = \SpeedPulsePro\Core\Profiler::formatDuration($clean['load_wall_ms']);
+		}
+		if ($clean['open_after_load_human'] === '' && $clean['open_after_load_ms'] > 0) {
+			$clean['open_after_load_human'] = \SpeedPulsePro\Core\Profiler::formatDuration($clean['open_after_load_ms']);
 		}
 
 		set_transient('speedpulse_browser_metrics', $clean, 600);

@@ -295,6 +295,9 @@
     var h = breakdownItem('hooks');
 
     var timelineVal = browser.browser_wall_human || bd.total_human || snap.total_human || '—';
+    if (browser.wall_inflated && browser.load_wall_human) {
+      timelineVal = browser.load_wall_human + ' · !';
+    }
     setTabMetric('timeline', timelineVal);
 
     setTabMetric('tips', lastTips && lastTips.length ? (lastTips.length + ' مورد') : '—');
@@ -336,6 +339,9 @@
     setTabMetric('ai', 'AI');
 
     var totalVal = browser.browser_wall_human || bd.total_human || snap.total_human || '—';
+    if (browser.wall_inflated && browser.load_wall_human) {
+      totalVal = browser.load_wall_human;
+    }
     setTabMetric('total', totalVal);
 
     var totalPanel = $('#sp-total');
@@ -360,7 +366,9 @@
     var cpu = (lastLive && lastLive.cpu) || (lastSystem && lastSystem.cpu) || {};
 
     var rows = [
-      { label: 'زمان واقعی مرورگر (Network)', value: browser.browser_wall_human || '—', note: 'تجربه کاربر' },
+      { label: 'زمان واقعی مرورگر (Network / نشست)', value: browser.browser_wall_human || '—', note: browser.wall_inflated ? '⚠ احتمالاً بادشده' : 'تجربه کاربر' },
+      { label: 'لود اولیه منصفانه', value: browser.load_wall_human || '—', note: 'تا رویداد Load (+حاشیه کوتاه)' },
+      { label: 'بازماندن بعد از Load', value: browser.open_after_load_human || '—', note: 'Heartbeat / REST / AJAX' },
       { label: 'زمان سرور HTML', value: bd.total_human || snap.total_human || '—', note: 'ساخت صفحه در PHP' },
       { label: 'جمع کوئری‌ها', value: q ? (q.human + (q.count ? ' (' + q.count + ' عدد)' : '')) : '—', note: 'مجموع زمان SQL' },
       { label: 'شبکه مسدودکننده', value: n ? (n.human + (n.count ? ' (' + n.count + ')' : '')) : '—', note: 'wp_remote_*' },
@@ -377,11 +385,23 @@
       { label: 'منابع Network مرورگر', value: browser.resource_count != null ? String(browser.resource_count) : '—', note: 'Heartbeat ' + (browser.heartbeat_count || 0) }
     ];
 
+    var heroVal = browser.wall_inflated && browser.load_wall_human
+      ? browser.load_wall_human
+      : (browser.browser_wall_human || bd.total_human || snap.total_human || '—');
+    var heroNote = browser.wall_inflated
+      ? 'چون نشست باد شده، اینجا «لود اولیه» نشان داده می‌شود. عدد نشست: ' + (browser.browser_wall_human || '—')
+      : 'مرورگر (در صورت موجود) اولویت دارد؛ در غیر این صورت زمان سرور HTML.';
+
     el.innerHTML =
+      (browser.wall_inflated
+        ? '<div class="sp-clarity-alert" role="alert"><div class="sp-clarity-alert__title">عدد نشست Network باد شده</div><p>' +
+          esc(browser.clarity_fa || 'برای قضاوت واقعی از لود اولیه و زمان سرور استفاده کنید.') +
+          '</p></div>'
+        : '') +
       '<div class="sp-total-hero">' +
         '<div class="sp-total-hero__label">جمع کل نمایشی</div>' +
-        '<div class="sp-total-hero__value">' + esc(browser.browser_wall_human || bd.total_human || snap.total_human || '—') + '</div>' +
-        '<p class="sp-meta">مرورگر (در صورت موجود) اولویت دارد؛ در غیر این صورت زمان سرور HTML.</p>' +
+        '<div class="sp-total-hero__value">' + esc(heroVal) + '</div>' +
+        '<p class="sp-meta">' + esc(heroNote) + '</p>' +
       '</div>' +
       '<div class="sp-list">' + rows.map(function (r) {
         return '<div class="sp-row"><div><strong>' + esc(r.label) + '</strong>' +
@@ -693,6 +713,46 @@
     }
 
     var doc = browser.server_document || {};
+    var snap = lastSnap || {};
+    var bd = snap.time_breakdown || {};
+    var serverHuman = bd.total_human || snap.total_human || '—';
+    var serverMs = parseFloat(bd.total_ms != null ? bd.total_ms : snap.total_ms) || 0;
+    var wallMs = parseFloat(browser.browser_wall_ms) || 0;
+    var loadWallMs = parseFloat(browser.load_wall_ms) || 0;
+    var openMs = parseFloat(browser.open_after_load_ms) || 0;
+    var inflated = !!browser.wall_inflated;
+    if (!inflated && loadWallMs > 0 && openMs >= 20000 && wallMs >= loadWallMs * 2.5) {
+      inflated = true;
+    }
+    if (!inflated && serverMs > 0 && wallMs >= serverMs * 3 && (wallMs - serverMs) >= 15000) {
+      inflated = true;
+    }
+
+    var clarityBanner = '';
+    if (inflated) {
+      clarityBanner =
+        '<div class="sp-clarity-alert" role="alert">' +
+          '<div class="sp-clarity-alert__title">این عدد به‌خاطر بازماندن صفحه باد شده</div>' +
+          '<p>' + esc(browser.clarity_fa ||
+            ('حدود ' + (browser.open_after_load_human || fmtTime(openMs)) +
+            ' بعد از Load صفحه باز بوده. عدد بزرگ Network را با کندی لود اولیه اشتباه نگیرید.')) + '</p>' +
+          '<div class="sp-clarity-alert__grid">' +
+            '<div><b>' + esc(browser.load_wall_human || fmtTime(loadWallMs) || '—') + '</b><span>لود اولیه (منصفانه)</span></div>' +
+            '<div><b>' + esc(serverHuman) + '</b><span>زمان سرور HTML</span></div>' +
+            '<div><b>' + esc(browser.open_after_load_human || fmtTime(openMs) || '—') + '</b><span>بازماندن بعد از Load</span></div>' +
+          '</div>' +
+          '<ol class="sp-clarity-alert__steps">' +
+            '<li>رفرش سخت صفحه (Ctrl+F5)</li>' +
+            '<li>۱۰ تا ۱۵ ثانیه صبر کنید</li>' +
+            '<li>پنل را باز کنید و دوباره خروجی بگیرید</li>' +
+          '</ol>' +
+          '<div class="sp-actions">' +
+            '<button type="button" class="button button-primary" data-tab-jump="tips">دیدن راهکارها</button>' +
+            '<button type="button" class="button" data-tab-jump="queries">بررسی کوئری‌ها</button>' +
+          '</div>' +
+        '</div>';
+    }
+
     var types = (browser.by_type || []).map(function (t) {
       var badge = '';
       if (t.key === 'heartbeat') badge = '<span class="sp-badge">Heartbeat</span> ';
@@ -730,14 +790,22 @@
     }).join('');
 
     el.innerHTML =
-      '<div class="sp-browser-hero">' +
-        '<div class="sp-browser-hero__label">زمان واقعی تجربه کاربر (مرورگر / Network)</div>' +
+      clarityBanner +
+      '<div class="sp-browser-hero' + (inflated ? ' is-inflated' : '') + '">' +
+        '<div class="sp-browser-hero__label">' +
+          (inflated ? 'زمان نشست باز صفحه (Network — بادشده)' : 'زمان واقعی تجربه کاربر (مرورگر / Network)') +
+        '</div>' +
         '<div class="sp-browser-hero__value">' + esc(browser.browser_wall_human || fmtTime(browser.browser_wall_ms)) + '</div>' +
+        (inflated && (browser.load_wall_human || loadWallMs)
+          ? '<div class="sp-browser-hero__fair">لود اولیه پیشنهادی: <strong>' +
+            esc(browser.load_wall_human || fmtTime(loadWallMs)) + '</strong></div>'
+          : '') +
         '<p class="sp-meta">' + esc(browser.note_fa || '') + '</p>' +
         '<div class="sp-detail-stats">' +
           '<div><b>' + esc(doc.human_ttfb || fmtTime(doc.ttfb_ms)) + '</b><span>TTFB سند اصلی</span></div>' +
           '<div><b>' + esc(doc.human_dom || fmtTime(doc.dom_content_ms)) + '</b><span>DOMContentLoaded</span></div>' +
           '<div><b>' + esc(doc.human_load || fmtTime(doc.load_event_ms)) + '</b><span>رویداد Load</span></div>' +
+          '<div><b>' + esc(serverHuman) + '</b><span>سرور HTML</span></div>' +
         '</div>' +
         '<div class="sp-meta">' + metaLine + '</div>' +
       '</div>' +

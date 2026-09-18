@@ -127,26 +127,40 @@ final class AdminBar
 
 		$browser = get_transient('speedpulse_browser_metrics');
 		$browserHuman = '';
+		$loadHuman = '';
+		$inflated = false;
 		if (is_array($browser) && ! empty($browser['browser_wall_human'])) {
 			$browserHuman = (string) $browser['browser_wall_human'];
+			$loadHuman = (string) ($browser['load_wall_human'] ?? '');
+			$inflated = ! empty($browser['wall_inflated']);
 		}
 
-		// اولویت نمایش: زمان واقعی مرورگر (شامل Network) اگر موجود باشد
-		$primary = $browserHuman !== '' ? $browserHuman : $serverHuman;
-		$primaryLabel = $browserHuman !== '' ? 'مرورگر' : 'سرور';
+		// اگر عدد باد شده باشد، لود اولیه را اولویت بده
+		$primary = $serverHuman;
+		$primaryLabel = 'سرور';
+		if ($inflated && $loadHuman !== '') {
+			$primary = $loadHuman;
+			$primaryLabel = 'لود اولیه';
+		} elseif ($browserHuman !== '') {
+			$primary = $browserHuman;
+			$primaryLabel = 'مرورگر';
+		}
 
 		$title = sprintf(
-			'⏱ %s: %s%s | 🧠 رم: %s MB | %s',
+			'⏱ %s: %s%s%s | 🧠 رم: %s MB | %s',
 			esc_html($primaryLabel),
 			esc_html($primary),
-			$browserHuman !== '' ? ' | سرور: ' . esc_html($serverHuman) : '',
+			($browserHuman !== '' && ! $inflated) ? ' | سرور: ' . esc_html($serverHuman) : '',
+			($inflated && $browserHuman !== '') ? ' | نشست: ' . esc_html($browserHuman) . ' ⚠' : '',
 			esc_html((string) ($snap['memory_mb'] ?? 0)),
 			$status
 		);
 
-		$tip = $browserHuman !== ''
-			? 'زمان مرورگر شامل همه درخواست‌های Network است. زمان سرور فقط تولید HTML همان صفحه است.'
-			: (is_string($breakdown['summary_fa'] ?? null) ? (string) $breakdown['summary_fa'] : 'باز کردن پنل اسپید‌پالس پرو');
+		$tip = $inflated
+			? 'هشدار: عدد نشست مرورگر به‌خاطر بازماندن صفحه باد شده. لود اولیه و زمان سرور HTML را برای قضاوت واقعی ببینید.'
+			: ($browserHuman !== ''
+				? 'زمان مرورگر شامل همه درخواست‌های Network است. زمان سرور فقط تولید HTML همان صفحه است.'
+				: (is_string($breakdown['summary_fa'] ?? null) ? (string) $breakdown['summary_fa'] : 'باز کردن پنل اسپید‌پالس پرو'));
 
 		$bar->add_node(
 			[
@@ -154,21 +168,40 @@ final class AdminBar
 				'title' => '<span class="speedpulse-ab-title">' . $title . '</span>',
 				'href'  => '#speedpulse-drawer',
 				'meta'  => [
-					'class' => 'speedpulse-adminbar' . ($enabled ? ' is-live' : ''),
+					'class' => 'speedpulse-adminbar' . ($enabled ? ' is-live' : '') . ($inflated ? ' is-inflated' : ''),
 					'title' => $tip,
 				],
 			]
 		);
 
 		if ($browserHuman !== '') {
-			$bar->add_node(
-				[
-					'id'     => 'speedpulse-browser-time',
-					'parent' => 'speedpulse-pro',
-					'title'  => 'زمان واقعی مرورگر (Network): ' . esc_html($browserHuman),
-					'href'   => '#speedpulse-drawer',
-				]
-			);
+			if ($inflated && $loadHuman !== '') {
+				$bar->add_node(
+					[
+						'id'     => 'speedpulse-load-wall',
+						'parent' => 'speedpulse-pro',
+						'title'  => '✓ لود اولیه (منصفانه): ' . esc_html($loadHuman),
+						'href'   => '#speedpulse-drawer',
+					]
+				);
+				$bar->add_node(
+					[
+						'id'     => 'speedpulse-browser-time',
+						'parent' => 'speedpulse-pro',
+						'title'  => '⚠ نشست باز صفحه (بادشده): ' . esc_html($browserHuman),
+						'href'   => '#speedpulse-drawer',
+					]
+				);
+			} else {
+				$bar->add_node(
+					[
+						'id'     => 'speedpulse-browser-time',
+						'parent' => 'speedpulse-pro',
+						'title'  => 'زمان واقعی مرورگر (Network): ' . esc_html($browserHuman),
+						'href'   => '#speedpulse-drawer',
+					]
+				);
+			}
 			$bar->add_node(
 				[
 					'id'     => 'speedpulse-server-time',

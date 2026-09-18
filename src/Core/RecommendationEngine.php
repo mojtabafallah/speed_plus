@@ -45,6 +45,40 @@ final class RecommendationEngine
 			}
 		}
 
+		if ($queryCount >= 150) {
+			$optionsHits = 0;
+			$jetHits = 0;
+			foreach ($queries as $q) {
+				$sql = strtolower((string) ($q['sql'] ?? ''));
+				if (strpos($sql, 'wp_options') !== false || strpos($sql, 'options') !== false) {
+					$optionsHits++;
+				}
+				if (strpos($sql, 'jet_engine') !== false || strpos($sql, 'jet-') !== false) {
+					$jetHits++;
+				}
+			}
+			$why = "در این درخواست {$queryCount} کوئری ثبت شده که معمولاً نشانه سربار افزونه/متا/options است.";
+			$steps = [
+				'تب کوئری‌ها را برای تکراری‌ها و کندترین‌ها باز کنید.',
+				'autoloadهای wp_options را خلوت کنید (افزونه‌های Options Autoload Cleaner یا کوئری دستی).',
+				'Transient و object cache را فعال کنید تا get_option تکراری کم شود.',
+			];
+			if ($jetHits > 0) {
+				$why .= " حداقل {$jetHits} مورد مرتبط با JetEngine دیده شد.";
+				array_unshift($steps, 'JetEngine را موقتاً غیرفعال و دوباره اندازه بگیرید؛ options/CCT آن اغلب سنگین است.');
+			} elseif ($optionsHits >= 20) {
+				$why .= " تعداد زیادی خواندن جدول options ({$optionsHits}) دیده شد.";
+			}
+			$out[] = $this->item(
+				'query-flood',
+				'critical',
+				'سیل کوئری در یک درخواست',
+				$why,
+				$steps,
+				'queries'
+			);
+		}
+
 		if ($serverMs >= 1500) {
 			$out[] = $this->item(
 				'server-slow',
@@ -154,10 +188,44 @@ final class RecommendationEngine
 		// مرورگر / Network
 		if (is_array($browser)) {
 			$wall = (float) ($browser['browser_wall_ms'] ?? 0);
+			$loadWall = (float) ($browser['load_wall_ms'] ?? 0);
+			$openAfter = (float) ($browser['open_after_load_ms'] ?? 0);
+			$inflated = ! empty($browser['wall_inflated']);
 			$slowest = is_array($browser['slowest'] ?? null) ? $browser['slowest'] : [];
 			$byType = is_array($browser['by_type'] ?? null) ? $browser['by_type'] : [];
 
-			if ($wall >= 8000) {
+			// مقایسه با زمان سرور HTML
+			if ($wall > 0 && $serverMs > 0 && $wall >= ($serverMs * 3) && ($wall - $serverMs) >= 15000) {
+				$out[] = $this->item(
+					'wall-vs-server',
+					'warn',
+					'عدد بزرگ مرورگر ≠ کندی ساخت HTML سرور',
+					'زمان Network مرورگر ' . Profiler::formatDuration($wall) . ' است ولی سرور HTML حدود ' . Profiler::formatDuration($serverMs) . ' بوده.',
+					[
+						'عدد بزرگ معمولاً به‌خاطر بازماندن صفحه و Heartbeat/REST/AJAX پس‌زمینه باد می‌شود.',
+						'برای قضاوت واقعی: زمان سرور HTML + «لود اولیه» مرورگر را ببینید، نه فقط دیوار زمانی کل نشست.',
+						'صفحه را یک‌بار رفرش سخت کنید، ۱۰–۱۵ ثانیه صبر کنید، بعد پنل را باز کنید.',
+						'در DevTools تب Network گزینه Disable cache را برای تست واقعی خاموش بگذارید مگر عمداً بخواهید بدترین حالت را ببینید.',
+					],
+					'timeline'
+				);
+			}
+
+			if ($inflated || ($openAfter >= 30000 && $loadWall > 0 && $wall >= ($loadWall * 2.5))) {
+				$out[] = $this->item(
+					'wall-inflated-open',
+					'critical',
+					'صفحه خیلی طول کشیده باز مانده و عدد را باد کرده',
+					'حدود ' . Profiler::formatDuration($openAfter) . ' بعد از رویداد Load صفحه باز بوده؛ لود اولیه حدود ' . Profiler::formatDuration($loadWall > 0 ? $loadWall : $wall) . ' است.',
+					[
+						'این عدد را با «کندی سایت» اشتباه نگیرید؛ بیشتر زمان نشستن روی صفحه است.',
+						'Heartbeat و درخواست‌های wc-admin / wp-json را در دسته‌بندی منابع بررسی کنید.',
+						'اگر می‌خواهید عدد منصفانه باشد: رفرش → ۱۵ ثانیه → خروجی بگیرید.',
+						'در ادمین فاصله Heartbeat را بیشتر کنید تا نویز پس‌زمینه کم شود.',
+					],
+					'timeline'
+				);
+			} elseif ($wall >= 8000) {
 				$out[] = $this->item(
 					'browser-wall',
 					'critical',

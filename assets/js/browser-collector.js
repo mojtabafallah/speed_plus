@@ -293,7 +293,23 @@
     slow.sort(function (a, b) { return b.duration_ms - a.duration_ms; });
     var top = slow.slice(0, 30);
 
+    // پایان آخرین منبع تا لحظه فعلی (ممکن است خیلی بعد از Load باشد)
     wallMs = Math.max(wallMs, maxEnd);
+
+    // لود اولیه: رویداد Load یا منابعی که تا ۳ ثانیه بعد از Load تمام شده‌اند
+    var loadWallMs = loadEvent > 0 ? loadEvent : wallMs;
+    var earlyEnd = 0;
+    resources.forEach(function (r) {
+      var end = (r.startTime || 0) + (r.duration || 0);
+      if (loadEvent > 0 && end <= loadEvent + 3000) {
+        if (end > earlyEnd) earlyEnd = end;
+      }
+    });
+    if (earlyEnd > loadWallMs) loadWallMs = earlyEnd;
+
+    var openMs = Math.max(0, wallMs - loadWallMs);
+    var ratio = loadWallMs > 0 ? (wallMs / loadWallMs) : 1;
+    var inflated = openMs >= 20000 && (ratio >= 2.5 || openMs >= 60000);
 
     var typeItems = Object.keys(byType).map(function (k) {
       var row = byType[k];
@@ -307,6 +323,10 @@
         human_sum: fmt(row.total_ms)
       };
     }).sort(function (a, b) { return b.max_ms - a.max_ms; });
+
+    var note = inflated
+      ? 'هشدار: عدد بزرگ عمدتاً به‌خاطر بازماندن صفحه و درخواست‌های پس‌زمینه (Heartbeat/REST/AJAX) است، نه کندی لود اولیه.'
+      : 'Heartbeat از Admin AJAX و REST جدا شده است. روی هر دسته کلیک کنید تا جزئیات درخواست‌ها را ببینید.';
 
     return {
       page_url: window.location.href,
@@ -322,6 +342,12 @@
       },
       browser_wall_ms: Math.round(wallMs * 100) / 100,
       browser_wall_human: fmt(wallMs),
+      load_wall_ms: Math.round(loadWallMs * 100) / 100,
+      load_wall_human: fmt(loadWallMs),
+      open_after_load_ms: Math.round(openMs * 100) / 100,
+      open_after_load_human: fmt(openMs),
+      wall_inflated: !!inflated,
+      wall_ratio: Math.round(ratio * 10) / 10,
       resource_count: resources.length,
       heartbeat_count: heartbeatCount,
       ajax_count: ajaxCount,
@@ -338,7 +364,10 @@
         s.end_ms = Math.round(((s.start_ms || 0) + (s.duration_ms || 0)) * 100) / 100;
         return s;
       }),
-      note_fa: 'Heartbeat از Admin AJAX و REST جدا شده است. روی هر دسته کلیک کنید تا جزئیات درخواست‌ها را ببینید.'
+      note_fa: note,
+      clarity_fa: inflated
+        ? ('صفحه حدود ' + fmt(openMs) + ' بعد از Load باز مانده و عدد «' + fmt(wallMs) + '» را باد کرده. برای قضاوت واقعی به «لود اولیه» (' + fmt(loadWallMs) + ') و زمان سرور HTML نگاه کنید.')
+        : ''
     };
   }
 
