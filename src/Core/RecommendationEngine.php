@@ -127,7 +127,8 @@ final class RecommendationEngine
 			);
 		}
 
-		$topName = '';
+		if ($attribution !== []) {
+			$topName = '';
 			$topCpu  = 0.0;
 			foreach ($attribution as $name => $row) {
 				$topName = (string) $name;
