@@ -328,11 +328,17 @@
       rest_count: restCount,
       transfer_kb: Math.round((transferSize / 1024) * 10) / 10,
       by_type: typeItems,
-      slowest: top.map(function (s) {
+      resources: slow.slice(0, 150).map(function (s) {
         s.human = fmt(s.duration_ms);
+        s.end_ms = Math.round(((s.start_ms || 0) + (s.duration_ms || 0)) * 100) / 100;
         return s;
       }),
-      note_fa: 'Heartbeat از Admin AJAX و REST جدا شده است. زمان سرور فقط HTML است؛ زمان مرورگر شامل Network می‌شود.'
+      slowest: top.map(function (s) {
+        s.human = fmt(s.duration_ms);
+        s.end_ms = Math.round(((s.start_ms || 0) + (s.duration_ms || 0)) * 100) / 100;
+        return s;
+      }),
+      note_fa: 'Heartbeat از Admin AJAX و REST جدا شده است. روی هر دسته کلیک کنید تا جزئیات درخواست‌ها را ببینید.'
     };
   }
 

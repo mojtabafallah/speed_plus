@@ -13,6 +13,9 @@
   var lastDom = null;
   var lastBrowser = D.browserMetrics || null;
   var lastTips = [];
+  var lastSystem = null;
+  var liveTimer = null;
+  var selectedBrowserType = null;
 
   var BREAKDOWN_MAP = {
     queries: {
@@ -240,6 +243,9 @@
     if (name === 'woo') loadWoo();
     if (name === 'queries') loadIndexes();
     if (name === 'tips') renderTips(lastTips);
+    if (name === 'system') loadSystem();
+    if (name === 'live') startLive();
+    else stopLive();
 
     if (scrollId) {
       setTimeout(function () {
@@ -419,10 +425,12 @@
         });
       })
       .catch(function (err) {
-        notify((err && err.message) ? err.message : 'ارتباط با سرور برقرار نشد.', {
-          type: 'error',
-          title: 'خطای ارتباط'
-        });
+        if (!options.silent) {
+          notify((err && err.message) ? err.message : 'ارتباط با سرور برقرار نشد.', {
+            type: 'error',
+            title: 'خطای ارتباط'
+          });
+        }
         throw err;
       })
       .finally(function () {
@@ -442,6 +450,7 @@
     if (!drawer) return;
     drawer.classList.remove('is-open');
     drawer.setAttribute('aria-hidden', 'true');
+    stopLive();
   }
 
   function renderTips(tips) {
@@ -487,6 +496,11 @@
           '<p class="sp-meta">پس از روشن بودن ضبط، ۱۵–۳۵ ثانیه در همین صفحه بمانید تا درخواست‌های Network (مثل wp-json ووکامرس) هم جمع شوند. سپس پنل را دوباره باز کنید.</p>' +
           '<p class="sp-meta">توجه: عدد «۳ ثانیه» فقط زمان ساخت HTML در سرور است؛ تب Network مرورگر مجموع همه درخواست‌های بعدی را هم نشان می‌دهد.</p>' +
         '</div>';
+      var detailEmpty = $('#sp-browser-detail');
+      if (detailEmpty) {
+        detailEmpty.hidden = true;
+        detailEmpty.innerHTML = '';
+      }
       return;
     }
 
@@ -496,10 +510,13 @@
       if (t.key === 'heartbeat') badge = '<span class="sp-badge">Heartbeat</span> ';
       if (t.key === 'ajax') badge = '<span class="sp-badge warn">AJAX</span> ';
       if (t.key === 'rest') badge = '<span class="sp-badge danger">REST</span> ';
-      return '<div class="sp-row"><div><strong>' + badge + esc(t.label) + '</strong>' +
-        '<div class="sp-meta">' + esc(t.count) + ' درخواست — جمع نسبی ' + esc(t.human_sum) + '</div></div>' +
+      var active = selectedBrowserType === t.key ? ' is-active' : '';
+      return '<button type="button" class="sp-row sp-clickable sp-browser-type' + active + '" data-browser-type="' + esc(t.key) + '">' +
+        '<div><strong>' + badge + esc(t.label) + '</strong>' +
+        '<div class="sp-meta">' + esc(t.count) + ' درخواست — جمع نسبی ' + esc(t.human_sum) + '</div>' +
+        '<div class="sp-click-hint">کلیک برای دیدن همه درخواست‌ها با شروع / پایان / منبع</div></div>' +
         '<div class="sp-breakdown-nums"><strong>' + esc(t.human_max || fmtTime(t.max_ms)) + '</strong>' +
-        '<span class="sp-badge warn">کندترین</span></div></div>';
+        '<span class="sp-badge warn">کندترین</span></div></button>';
     }).join('');
 
     var metaLine = 'تعداد منابع: ' + esc(browser.resource_count || 0);
@@ -516,10 +533,12 @@
         : (s.type === 'ajax'
           ? '<span class="sp-badge warn">AJAX</span> '
           : (s.type === 'rest' ? '<span class="sp-badge danger">REST</span> ' : ''));
-      return '<div class="sp-row"><div><div class="sp-sql">' + typeBadge + esc(s.name) + '</div>' +
+      return '<button type="button" class="sp-row sp-clickable" data-browser-res="' + esc(s.url || s.name || '') + '">' +
+        '<div><div class="sp-sql">' + typeBadge + esc(s.name) + '</div>' +
         '<div class="sp-meta">' + esc(s.type) + (s.action ? (' | action=' + esc(s.action)) : '') +
+        ' | شروع ' + esc(s.start_ms || 0) + 'ms → پایان ' + esc(s.end_ms || ((s.start_ms || 0) + (s.duration_ms || 0))) + 'ms' +
         (s.waiting_ms ? (' | انتظار سرور: ' + fmtTime(s.waiting_ms)) : '') + '</div></div>' +
-        '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></div>';
+        '<strong>' + esc(s.human || fmtTime(s.duration_ms)) + '</strong></button>';
     }).join('');
 
     el.innerHTML =
@@ -534,11 +553,299 @@
         '</div>' +
         '<div class="sp-meta">' + metaLine + '</div>' +
       '</div>' +
-      '<h4>دسته‌بندی منابع مرورگر</h4><div class="sp-list">' + (types || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
+      '<h4>دسته‌بندی منابع مرورگر <span class="sp-meta">(کلیک کنید)</span></h4><div class="sp-list">' + (types || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
       '<h4>کندترین درخواست‌های Network</h4><div class="sp-list">' + (slow || '<p class="sp-meta">موردی نیست</p>') + '</div>' +
       (lastTips && lastTips.length
         ? '<div class="sp-browser-tips-link"><button type="button" class="button button-primary" data-tab-jump="tips">مشاهده راهکارهای پیشنهادی (' + lastTips.length + ')</button></div>'
         : '');
+
+    if (selectedBrowserType) {
+      renderBrowserTypeDetail(selectedBrowserType, false);
+    }
+  }
+
+  function getBrowserResources(browser) {
+    browser = browser || lastBrowser || {};
+    if (browser.resources && browser.resources.length) return browser.resources;
+    return browser.slowest || [];
+  }
+
+  function renderBrowserTypeDetail(typeKey, openModal) {
+    var browser = lastBrowser || {};
+    var resources = getBrowserResources(browser).filter(function (r) {
+      return (r.type || '') === typeKey;
+    });
+    var typeMeta = null;
+    (browser.by_type || []).forEach(function (t) {
+      if (t.key === typeKey) typeMeta = t;
+    });
+    var label = typeMeta ? typeMeta.label : typeKey;
+    selectedBrowserType = typeKey;
+
+    var rows = resources.slice().sort(function (a, b) {
+      return (b.duration_ms || 0) - (a.duration_ms || 0);
+    }).map(function (r, idx) {
+      var start = r.start_ms || 0;
+      var end = r.end_ms != null ? r.end_ms : (start + (r.duration_ms || 0));
+      var source = r.initiator || r.type || '—';
+      return '<div class="sp-res-card">' +
+        '<div class="sp-res-card__head"><strong>#' + (idx + 1) + ' ' + esc(r.name || 'درخواست') + '</strong>' +
+        '<span class="sp-badge">' + esc(r.human || fmtTime(r.duration_ms)) + '</span></div>' +
+        '<div class="sp-res-grid">' +
+          '<div><b>' + esc(start) + ' ms</b><span>شروع</span></div>' +
+          '<div><b>' + esc(end) + ' ms</b><span>پایان</span></div>' +
+          '<div><b>' + esc(r.human || fmtTime(r.duration_ms)) + '</b><span>مدت</span></div>' +
+          '<div><b>' + esc(source) + '</b><span>منبع (initiator)</span></div>' +
+        '</div>' +
+        (r.action ? '<div class="sp-meta">اکشن: <code dir="ltr">' + esc(r.action) + '</code></div>' : '') +
+        (r.waiting_ms ? '<div class="sp-meta">انتظار سرور: ' + esc(fmtTime(r.waiting_ms)) + '</div>' : '') +
+        (r.transfer_kb ? '<div class="sp-meta">حجم انتقال: ' + esc(r.transfer_kb) + ' KB</div>' : '') +
+        '<div class="sp-sql" title="' + esc(r.url || '') + '">' + esc(r.url || r.name || '') + '</div>' +
+      '</div>';
+    }).join('');
+
+    var panel = $('#sp-browser-detail');
+    if (panel) {
+      panel.hidden = false;
+      panel.innerHTML =
+        '<div class="sp-browser-detail__head">' +
+          '<h4>جزئیات دسته: ' + esc(label) + ' (' + resources.length + ' درخواست)</h4>' +
+          '<button type="button" class="button" data-browser-detail-close>بستن جزئیات</button>' +
+        '</div>' +
+        (rows || '<p class="sp-meta">درخواستی در این دسته نیست.</p>');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // highlight active type buttons
+    $all('.sp-browser-type').forEach(function (btn) {
+      btn.classList.toggle('is-active', btn.getAttribute('data-browser-type') === typeKey);
+    });
+
+    if (openModal) {
+      var modalBody =
+        '<p class="sp-meta">شروع و پایان بر اساس performance.now از لود صفحه هستند.</p>' +
+        '<div class="sp-detail-stats">' +
+          '<div><b>' + esc(resources.length) + '</b><span>تعداد</span></div>' +
+          '<div><b>' + esc(typeMeta ? typeMeta.human_sum : '—') + '</b><span>جمع نسبی</span></div>' +
+          '<div><b>' + esc(typeMeta ? (typeMeta.human_max || fmtTime(typeMeta.max_ms)) : '—') + '</b><span>کندترین</span></div>' +
+        '</div>' +
+        '<div class="sp-modal-scroll">' + (rows || '<p class="sp-meta">موردی نیست</p>') + '</div>';
+      notify(modalBody, {
+        type: 'info',
+        title: 'درخواست‌های «' + label + '»',
+        html: true,
+        autoClose: false
+      });
+    }
+  }
+
+  function openBrowserResourceDetail(urlOrName) {
+    var resources = getBrowserResources();
+    var hit = null;
+    resources.forEach(function (r) {
+      if (!hit && ((r.url && r.url === urlOrName) || (r.name && r.name === urlOrName))) {
+        hit = r;
+      }
+    });
+    if (!hit) return;
+    var start = hit.start_ms || 0;
+    var end = hit.end_ms != null ? hit.end_ms : (start + (hit.duration_ms || 0));
+    var html =
+      '<div class="sp-detail-stats">' +
+        '<div><b>' + esc(start) + ' ms</b><span>شروع</span></div>' +
+        '<div><b>' + esc(end) + ' ms</b><span>پایان</span></div>' +
+        '<div><b>' + esc(hit.human || fmtTime(hit.duration_ms)) + '</b><span>مدت</span></div>' +
+      '</div>' +
+      '<p><strong>نوع:</strong> ' + esc(hit.type || '—') + '</p>' +
+      '<p><strong>منبع:</strong> ' + esc(hit.initiator || '—') + '</p>' +
+      (hit.action ? '<p><strong>اکشن:</strong> <code dir="ltr">' + esc(hit.action) + '</code></p>' : '') +
+      (hit.waiting_ms ? '<p><strong>انتظار سرور:</strong> ' + esc(fmtTime(hit.waiting_ms)) + '</p>' : '') +
+      (hit.transfer_kb ? '<p><strong>حجم:</strong> ' + esc(hit.transfer_kb) + ' KB</p>' : '') +
+      '<p class="sp-sql" dir="ltr">' + esc(hit.url || hit.name || '') + '</p>';
+    notify(html, {
+      type: 'info',
+      title: hit.name || 'جزئیات درخواست',
+      html: true,
+      autoClose: false
+    });
+  }
+
+  function loadSystem() {
+    var el = $('#sp-system');
+    post('speedpulse_system_info', {}, {
+      loading: 'در حال خواندن اطلاعات سرور و وردپرس…',
+      loadingTitle: 'اطلاعات سیستم',
+      target: el,
+      targetText: 'در حال جمع‌آوری مشخصات سیستم…'
+    }).then(function (res) {
+      if (!res || !res.success) {
+        notify((res && res.data && res.data.message) || 'خواندن سیستم ناموفق بود.', { type: 'error' });
+        return;
+      }
+      lastSystem = res.data.system || {};
+      renderSystem(lastSystem);
+    }).catch(function () {});
+  }
+
+  function yn(v) {
+    return v ? 'بله' : 'خیر';
+  }
+
+  function renderSystem(sys) {
+    var el = $('#sp-system');
+    if (!el || !sys) return;
+    var wp = sys.wordpress || {};
+    var php = sys.php || {};
+    var mem = sys.memory || {};
+    var cpu = sys.cpu || {};
+    var srv = sys.server || {};
+    var db = sys.database || {};
+    var theme = sys.theme || {};
+    var plugins = sys.plugins || {};
+    var woo = sys.woocommerce || {};
+    var cache = sys.cache || {};
+    var opc = cache.opcache || {};
+    var ext = php.extensions || {};
+
+    var pluginRows = (plugins.active_list || []).map(function (p) {
+      return '<div class="sp-row"><div><strong>' + esc(p.name) + '</strong>' +
+        '<div class="sp-meta" dir="ltr">' + esc(p.file) + '</div></div>' +
+        '<span class="sp-badge">' + esc(p.version || '—') + '</span></div>';
+    }).join('');
+
+    el.innerHTML =
+      '<div class="sp-sys-grid">' +
+        '<div class="sp-sys-card"><h4>وردپرس</h4>' +
+          '<div class="sp-sys-kv"><span>نسخه</span><b>' + esc(wp.version) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>چندسایته</span><b>' + yn(wp.multisite) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>WP_DEBUG</span><b>' + yn(wp.debug) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>زبان</span><b>' + esc(wp.locale) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>آدرس</span><b dir="ltr">' + esc(wp.home) + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>PHP</h4>' +
+          '<div class="sp-sys-kv"><span>نسخه</span><b>' + esc(php.version) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>SAPI</span><b>' + esc(php.sapi) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>OS</span><b>' + esc(php.os) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>سقف حافظه</span><b>' + esc(php.memory_limit) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>max_execution</span><b>' + esc(php.max_execution) + 's</b></div>' +
+          '<div class="sp-sys-kv"><span>upload / post</span><b>' + esc(php.upload_max) + ' / ' + esc(php.post_max) + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>حافظه فعلی</h4>' +
+          '<div class="sp-gauge"><span style="width:' + Math.min(100, mem.usage_percent || 0) + '%"></span></div>' +
+          '<div class="sp-sys-kv"><span>مصرف</span><b>' + esc(mem.usage_human) + ' (' + esc(mem.usage_percent) + '%)</b></div>' +
+          '<div class="sp-sys-kv"><span>اوج</span><b>' + esc(mem.peak_human) + ' (' + esc(mem.peak_percent) + '%)</b></div>' +
+          '<div class="sp-sys-kv"><span>سقف</span><b>' + esc(mem.limit_human) + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>CPU</h4>' +
+          '<div class="sp-sys-kv"><span>هسته‌ها</span><b>' + esc(cpu.cores || '—') + '</b></div>' +
+          '<div class="sp-sys-kv"><span>Load 1/5/15</span><b>' + esc(cpu.load_1 != null ? cpu.load_1 : '—') + ' / ' +
+            esc(cpu.load_5 != null ? cpu.load_5 : '—') + ' / ' + esc(cpu.load_15 != null ? cpu.load_15 : '—') + '</b></div>' +
+          '<div class="sp-sys-kv"><span>user / sys</span><b>' + esc(cpu.user_time_ms != null ? cpu.user_time_ms + ' ms' : '—') +
+            ' / ' + esc(cpu.sys_time_ms != null ? cpu.sys_time_ms + ' ms' : '—') + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>سرور و دیسک</h4>' +
+          '<div class="sp-sys-kv"><span>نرم‌افزار</span><b>' + esc(srv.software || '—') + '</b></div>' +
+          '<div class="sp-sys-kv"><span>HTTPS</span><b>' + yn(srv.https) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>دیسک آزاد</span><b>' + esc(srv.disk_free) + ' / ' + esc(srv.disk_total) + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>دیتابیس</h4>' +
+          '<div class="sp-sys-kv"><span>نسخه</span><b>' + esc(db.version) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>حجم</span><b>' + esc(db.size) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>جداول</span><b>' + esc(db.tables) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>charset</span><b>' + esc(db.charset) + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>قالب و ووکامرس</h4>' +
+          '<div class="sp-sys-kv"><span>قالب</span><b>' + esc(theme.name) + ' ' + esc(theme.version) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>والد</span><b>' + esc(theme.parent || '—') + '</b></div>' +
+          '<div class="sp-sys-kv"><span>ووکامرس</span><b>' + (woo.active ? esc(woo.version || 'فعال') : 'غیرفعال') + '</b></div>' +
+        '</div>' +
+        '<div class="sp-sys-card"><h4>افزونه‌ها و کش</h4>' +
+          '<div class="sp-sys-kv"><span>فعال / کل</span><b>' + esc(plugins.active) + ' / ' + esc(plugins.total) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>Object Cache</span><b>' + yn(cache.object_cache) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>OPcache</span><b>' + yn(opc.enabled) + '</b></div>' +
+          '<div class="sp-sys-kv"><span>curl / gd / redis</span><b>' + yn(ext.curl) + ' / ' + yn(ext.gd) + ' / ' + yn(ext.redis) + '</b></div>' +
+        '</div>' +
+      '</div>' +
+      '<h4>افزونه‌های فعال</h4><div class="sp-list">' + (pluginRows || '<p class="sp-meta">—</p>') + '</div>' +
+      '<p class="sp-meta">تولید شده: ' + esc(sys.generated_at || '') + '</p>';
+  }
+
+  function startLive() {
+    stopLive();
+    var status = $('#sp-live-status');
+    if (status) {
+      status.textContent = 'زنده';
+      status.className = 'sp-badge ok';
+    }
+    pollLive();
+    liveTimer = setInterval(pollLive, 2000);
+  }
+
+  function stopLive() {
+    if (liveTimer) {
+      clearInterval(liveTimer);
+      liveTimer = null;
+    }
+    var status = $('#sp-live-status');
+    if (status) {
+      status.textContent = 'متوقف';
+      status.className = 'sp-badge';
+    }
+  }
+
+  function pollLive() {
+    post('speedpulse_live_metrics', {}, { loading: false, silent: true }).then(function (res) {
+      if (!res || !res.success) return;
+      renderLive(res.data.live || {});
+    }).catch(function () {});
+  }
+
+  function renderLive(live) {
+    var el = $('#sp-live');
+    var clock = $('#sp-live-clock');
+    if (clock) clock.textContent = 'آخرین نمونه: ' + (live.at_human || '—');
+    if (!el) return;
+    var mem = live.memory || {};
+    var cpu = live.cpu || {};
+    var parts = (mem.parts || []).map(function (p) {
+      return '<div class="sp-row"><div><strong>' + esc(p.label) + '</strong>' +
+        '<div class="sp-meta">' + esc(p.note || '') + '</div></div><strong>' + esc(p.human) + '</strong></div>';
+    }).join('');
+    var tops = (live.top_sources || []).map(function (s) {
+      return '<div class="sp-row"><div><strong>' + esc(s.name) + '</strong>' +
+        '<div class="sp-meta">کوئری: ' + esc(s.queries) + ' | هوک: ' + esc(s.hooks) + '</div></div>' +
+        '<strong>' + esc(fmtTime(s.cpu_ms)) + '</strong></div>';
+    }).join('');
+    var loadPct = 0;
+    if (cpu.load_1 != null && cpu.cores) {
+      loadPct = Math.min(100, Math.round((cpu.load_1 / Math.max(1, cpu.cores)) * 100));
+    }
+
+    el.innerHTML =
+      '<div class="sp-live-grid">' +
+        '<div class="sp-live-card">' +
+          '<div class="sp-live-card__label">رم درگیر (real)</div>' +
+          '<div class="sp-live-card__value">' + esc(mem.usage_human || '—') + '</div>' +
+          '<div class="sp-gauge sp-gauge--lg"><span style="width:' + Math.min(100, mem.usage_percent || 0) + '%"></span></div>' +
+          '<div class="sp-meta">' + esc(mem.usage_percent || 0) + '% از سقف ' + esc(mem.limit_human || '—') +
+            ' — اوج: ' + esc(mem.peak_human || '—') + '</div>' +
+        '</div>' +
+        '<div class="sp-live-card">' +
+          '<div class="sp-live-card__label">CPU / Load</div>' +
+          '<div class="sp-live-card__value">' + esc(cpu.load_1 != null ? cpu.load_1 : '—') + '</div>' +
+          '<div class="sp-gauge sp-gauge--lg sp-gauge--cpu"><span style="width:' + loadPct + '%"></span></div>' +
+          '<div class="sp-meta">Load ۱/۵/۱۵: ' + esc(cpu.load_1 != null ? cpu.load_1 : '—') + ' / ' +
+            esc(cpu.load_5 != null ? cpu.load_5 : '—') + ' / ' + esc(cpu.load_15 != null ? cpu.load_15 : '—') +
+            (cpu.cores ? (' | هسته: ' + esc(cpu.cores)) : '') + '</div>' +
+          '<div class="sp-meta">user: ' + esc(cpu.user_time_ms != null ? cpu.user_time_ms + ' ms' : '—') +
+            ' | sys: ' + esc(cpu.sys_time_ms != null ? cpu.sys_time_ms + ' ms' : '—') + '</div>' +
+          '<p class="sp-meta">' + esc(cpu.note || '') + '</p>' +
+        '</div>' +
+      '</div>' +
+      '<h4>جزئیات داخل رم</h4><div class="sp-list">' + (parts || '<p class="sp-meta">—</p>') + '</div>' +
+      '<h4>منابع درگیر (آخرین اسنپ‌شات)</h4><div class="sp-list">' + (tops || '<p class="sp-meta">هنوز اسنپ‌شاتی نیست؛ ضبط را روشن کنید.</p>') + '</div>' +
+      '<p class="sp-meta" dir="ltr">' + esc((live.request && live.request.method) || '') + ' ' +
+        esc((live.request && live.request.uri) || '') + '</p>';
   }
 
   function renderBreakdown(snap) {
@@ -823,6 +1130,29 @@
         openTimelineDetail(parseInt(timelineEl.getAttribute('data-sp-timeline'), 10) || 0);
         return;
       }
+      var browserTypeEl = t.closest ? t.closest('[data-browser-type]') : null;
+      if (browserTypeEl) {
+        e.preventDefault();
+        renderBrowserTypeDetail(browserTypeEl.getAttribute('data-browser-type'), true);
+        return;
+      }
+      var browserResEl = t.closest ? t.closest('[data-browser-res]') : null;
+      if (browserResEl) {
+        e.preventDefault();
+        openBrowserResourceDetail(browserResEl.getAttribute('data-browser-res'));
+        return;
+      }
+      if (t.matches && t.matches('[data-browser-detail-close]')) {
+        e.preventDefault();
+        selectedBrowserType = null;
+        var det = $('#sp-browser-detail');
+        if (det) {
+          det.hidden = true;
+          det.innerHTML = '';
+        }
+        $all('.sp-browser-type').forEach(function (btn) { btn.classList.remove('is-active'); });
+        return;
+      }
       var tipGoto = t.closest ? t.closest('[data-tip-goto]') : null;
       if (tipGoto) {
         e.preventDefault();
@@ -896,6 +1226,8 @@
         title: 'راهکارها'
       });
     });
+    var refreshSystem = $('#sp-refresh-system');
+    if (refreshSystem) refreshSystem.addEventListener('click', loadSystem);
     var clearLog = $('#sp-clear-log');
     if (clearLog) clearLog.addEventListener('click', function () {
       post('speedpulse_clear_log', {}, {

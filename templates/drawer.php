@@ -12,8 +12,11 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-$exportJson = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=json'), 'speedpulse_export');
-$exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=html'), 'speedpulse_export');
+$exportJson  = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=json'), 'speedpulse_export');
+$exportHtml  = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=html'), 'speedpulse_export');
+$exportPdf   = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=pdf'), 'speedpulse_export');
+$exportExcel = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=excel'), 'speedpulse_export');
+$exportCsv   = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&format=csv'), 'speedpulse_export');
 ?>
 <div id="speedpulse-drawer" class="speedpulse-drawer" aria-hidden="true" dir="rtl">
 	<div class="speedpulse-drawer__backdrop" data-sp-close></div>
@@ -29,6 +32,8 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 		<nav class="speedpulse-tabs" role="tablist">
 			<button type="button" class="is-active" data-tab="timeline">خط زمان</button>
 			<button type="button" data-tab="tips">راهکارها</button>
+			<button type="button" data-tab="system">سیستم</button>
+			<button type="button" data-tab="live">رم / CPU زنده</button>
 			<button type="button" data-tab="queries">کوئری‌ها</button>
 			<button type="button" data-tab="sources">سهم منابع</button>
 			<button type="button" data-tab="errors">لاگ خطاها</button>
@@ -42,6 +47,7 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 			<section class="speedpulse-tab is-active" data-panel="timeline">
 				<h3>زمان واقعی صفحه</h3>
 				<div id="sp-browser" class="sp-browser"></div>
+				<div id="sp-browser-detail" class="sp-browser-detail" hidden></div>
 				<h3>خلاصه زمان سرور (HTML)</h3>
 				<div id="sp-breakdown" class="sp-breakdown"></div>
 				<h3>آبشار زمان اجرای PHP</h3>
@@ -55,6 +61,25 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 					<button type="button" class="button button-primary" id="sp-refresh-tips">به‌روزرسانی راهکارها</button>
 				</div>
 				<div id="sp-tips"></div>
+			</section>
+
+			<section class="speedpulse-tab" data-panel="system">
+				<h3>اطلاعات کلی سرور و وردپرس</h3>
+				<p class="sp-meta">نسخه PHP، وردپرس، دیتابیس، دیسک، افزونه‌ها، OPcache و وضعیت کش شیء.</p>
+				<div class="sp-actions">
+					<button type="button" class="button button-primary" id="sp-refresh-system">بازخوانی اطلاعات سیستم</button>
+				</div>
+				<div id="sp-system"></div>
+			</section>
+
+			<section class="speedpulse-tab" data-panel="live">
+				<h3>رم و CPU بلادرنگ</h3>
+				<p class="sp-meta">نمونه‌برداری هر ۲ ثانیه از حافظه PHP، Load Average و سهم منابع آخرین اسنپ‌شات.</p>
+				<div class="sp-live-controls">
+					<span id="sp-live-status" class="sp-badge ok">آماده</span>
+					<span id="sp-live-clock" class="sp-meta">—</span>
+				</div>
+				<div id="sp-live"></div>
 			</section>
 
 			<section class="speedpulse-tab" data-panel="queries">
@@ -115,9 +140,13 @@ $exportHtml = wp_nonce_url(admin_url('admin-post.php?action=speedpulse_export&fo
 				<div class="sp-progress"><div id="sp-crawler-bar"></div></div>
 
 				<h3>خروجی گزارش</h3>
-				<p>
-					<a class="button" href="<?php echo esc_url($exportHtml); ?>">دانلود HTML</a>
-					<a class="button" href="<?php echo esc_url($exportJson); ?>">دانلود JSON</a>
+				<p class="sp-meta">جدول درخواست‌های Network (فایل، شروع، پایان، مدت) + اطلاعات سیستم.</p>
+				<p class="sp-export-btns">
+					<a class="button button-primary" href="<?php echo esc_url($exportExcel); ?>">دانلود Excel (CSV)</a>
+					<a class="button button-primary" href="<?php echo esc_url($exportPdf); ?>" target="_blank" rel="noopener">چاپ / PDF</a>
+					<a class="button" href="<?php echo esc_url($exportCsv); ?>">CSV خام</a>
+					<a class="button" href="<?php echo esc_url($exportHtml); ?>">HTML</a>
+					<a class="button" href="<?php echo esc_url($exportJson); ?>">JSON</a>
 				</p>
 			</section>
 

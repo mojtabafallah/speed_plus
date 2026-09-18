@@ -13,6 +13,7 @@ use SpeedPulsePro\AI\AiClient;
 use SpeedPulsePro\AI\CanaryRunner;
 use SpeedPulsePro\AI\PatchGenerator;
 use SpeedPulsePro\Core\Profiler;
+use SpeedPulsePro\Core\SystemInfo;
 use SpeedPulsePro\Crawler\SiteCrawler;
 use SpeedPulsePro\Cron\CronAuditor;
 use SpeedPulsePro\Database\IndexOptimizer;
@@ -53,6 +54,8 @@ final class AjaxHandlers
 			'speedpulse_cron_inventory' => 'cronInventory',
 			'speedpulse_memory_report'  => 'memoryReport',
 			'speedpulse_browser_report' => 'browserReport',
+			'speedpulse_system_info'    => 'systemInfo',
+			'speedpulse_live_metrics'   => 'liveMetrics',
 		];
 
 		foreach ($actions as $action => $method) {
@@ -126,6 +129,7 @@ final class AjaxHandlers
 			'rest_count'         => (int) ($data['rest_count'] ?? 0),
 			'server_document'    => is_array($data['server_document'] ?? null) ? $data['server_document'] : [],
 			'by_type'            => is_array($data['by_type'] ?? null) ? array_slice($data['by_type'], 0, 20) : [],
+			'resources'          => is_array($data['resources'] ?? null) ? array_slice($data['resources'], 0, 150) : [],
 			'slowest'            => is_array($data['slowest'] ?? null) ? array_slice($data['slowest'], 0, 30) : [],
 			'note_fa'            => sanitize_text_field((string) ($data['note_fa'] ?? '')),
 		];
@@ -301,6 +305,18 @@ final class AjaxHandlers
 	{
 		$this->guard();
 		wp_send_json_success(get_transient('speedpulse_memory_report') ?: ['message' => 'هنوز نمونه‌ای ثبت نشده است.']);
+	}
+
+	public function systemInfo(): void
+	{
+		$this->guard();
+		wp_send_json_success(['system' => (new SystemInfo())->collect()]);
+	}
+
+	public function liveMetrics(): void
+	{
+		$this->guard();
+		wp_send_json_success(['live' => (new SystemInfo())->liveSample()]);
 	}
 
 	/**
